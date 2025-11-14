@@ -240,27 +240,29 @@ export default function VerificationOnboardingScreen() {
       console.log('[Upload Image] Session user ID:', session.user?.id);
       console.log('[Upload Image] Expected folder:', `${session.user?.id}`);
 
-      let fileBlob: Blob;
+      let fileData: Blob | ArrayBuffer;
+      let contentType = `image/${fileExt}`;
       
       if (Platform.OS === 'web') {
         console.log('[Upload Image] Web: fetching blob');
         const response = await fetch(uri);
-        fileBlob = await response.blob();
+        fileData = await response.blob();
+        contentType = (fileData as Blob).type || contentType;
       } else {
-        console.log('[Upload Image] Native: reading file as base64');
+        console.log('[Upload Image] Native: reading file as ArrayBuffer');
         const response = await fetch(uri);
         if (!response.ok) {
           throw new Error(`Failed to read file: ${response.status}`);
         }
-        fileBlob = await response.blob();
+        fileData = await response.arrayBuffer();
       }
       
-      console.log('[Upload Image] File blob size:', fileBlob.size, 'type:', fileBlob.type);
+      console.log('[Upload Image] File data prepared, type:', contentType);
 
       const { data, error } = await supabase.storage
         .from('verification-documents')
-        .upload(fileName, fileBlob, {
-          contentType: fileBlob.type || `image/${fileExt}`,
+        .upload(fileName, fileData, {
+          contentType,
           upsert: true,
         });
 
