@@ -119,9 +119,9 @@ export default function ProfileScreen() {
           <View style={[styles.avatarPlaceholder, { backgroundColor: theme.card }]}>
             <User size={48} color={BrandColors.gray400} />
           </View>
-          <Text style={[styles.name, { color: theme.text }]}>{user?.name || "Guest User"}</Text>
+          <Text style={[styles.name, { color: theme.text }]}>{user?.name || t("guestUser")}</Text>
           <Text style={[styles.email, { color: theme.secondaryText }]}>
-            {isGuest ? "Sign in to access your profile" : user?.email}
+            {isGuest ? t("signInToAccessProfile") : user?.email}
           </Text>
         </View>
 
@@ -130,7 +130,7 @@ export default function ProfileScreen() {
             style={styles.button}
             onPress={() => router.push("/onboarding" as any)}
           >
-            <Text style={styles.buttonText}>Sign In / Sign Up</Text>
+            <Text style={styles.buttonText}>{t("signInSignUp")}</Text>
           </TouchableOpacity>
         )}
 
@@ -150,15 +150,15 @@ export default function ProfileScreen() {
             </View>
             <View style={styles.sellerCardInfo}>
               <Text style={styles.sellerCardTitle}>
-                {user?.type === "seller" ? "Seller Dashboard" : t("switchToSelling")}
+                {user?.type === "seller" ? t("sellerDashboardLabel") : t("switchToSelling")}
               </Text>
               <Text style={styles.sellerCardDesc}>
                 {user?.type === "seller" 
                   ? user.verificationStatus === "approved"
-                    ? "Manage your services"
+                    ? t("manageYourServicesDesc")
                     : user.verificationStatus === "pending"
-                    ? "Verification pending"
-                    : "Complete verification"
+                    ? t("verificationPending")
+                    : t("completeVerification")
                   : t("manageYourServices")}
               </Text>
             </View>
@@ -192,13 +192,13 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Settings</Text>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>{t("settings")}</Text>
           <TouchableOpacity
             style={[styles.menuItem, { backgroundColor: theme.card }]}
             onPress={() => router.push("/settings" as any)}
           >
             <Settings size={20} color={BrandColors.gray600} />
-            <Text style={[styles.menuItemText, { color: theme.text }]}>Account Settings</Text>
+            <Text style={[styles.menuItemText, { color: theme.text }]}>{t("accountSettings")}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

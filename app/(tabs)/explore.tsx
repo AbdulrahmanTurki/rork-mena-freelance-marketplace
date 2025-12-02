@@ -72,7 +72,7 @@ export default function ExploreScreen() {
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
         <Text style={[styles.title, { color: theme.text }]}>{t("categories")}</Text>
         <Text style={[styles.subtitle, { color: theme.secondaryText }]}>
-          Explore services across different categories
+          {t("exploreServicesAcrossCategories")}
         </Text>
 
         <View style={styles.categoriesGrid}>
