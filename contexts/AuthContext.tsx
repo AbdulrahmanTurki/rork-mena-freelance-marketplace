@@ -1,6 +1,6 @@
 import createContextHook from "@nkzw/create-context-hook";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { supabase, checkSignupRateLimit, recordSignupAttempt, clearSignupAttempts } from "@/lib/supabase";
+import { supabase, checkSignupRateLimit, recordSignupAttempt, clearSignupAttempts, testSupabaseConnection } from "@/lib/supabase";
 import type { Database } from "@/types/database.types";
 
 export type UserType = "buyer" | "seller" | "guest" | null;
@@ -32,6 +32,12 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
       if (profileError) {
         console.error("[AuthContext] Error loading profile:", profileError);
+        
+        if (profileError.message?.includes('FetchError') ||
+            profileError.message?.includes('Network request failed')) {
+          console.error('[AuthContext] Network error loading profile');
+        }
+        
         return;
       }
 
@@ -42,11 +48,15 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
       if (profile.user_type === "seller") {
         console.log("[AuthContext] User is seller, checking verification status");
-        const { data: verification } = await supabase
+        const { data: verification, error: verError } = await supabase
           .from("seller_verifications")
           .select("status")
           .eq("user_id", userId)
           .single();
+
+        if (verError && !verError.message.includes('No rows')) {
+          console.error('[AuthContext] Error loading verification:', verError);
+        }
 
         verificationStatus = verification?.status;
         console.log("[AuthContext] Verification status:", verificationStatus);
@@ -83,6 +93,12 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       }
     } catch (error) {
       console.error("Failed to load user:", error);
+      
+      if (error instanceof Error && 
+          (error.message.includes('Network request failed') ||
+           error.message.includes('Failed to fetch'))) {
+        console.error('[AuthContext] Network error during initial load. Supabase might be unreachable.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -112,6 +128,16 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   const login = useCallback(
     async (email: string, password: string): Promise<{ error?: string }> => {
       try {
+        console.log('[AuthContext] Starting login...');
+        
+        const connectionTest = await testSupabaseConnection();
+        if (!connectionTest.success) {
+          console.error('[AuthContext] Connection test failed:', connectionTest.error);
+          return { 
+            error: 'Unable to connect to server. Please check your internet connection and try again.'
+          };
+        }
+        
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
@@ -119,6 +145,15 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
         if (error) {
           console.error("Login error:", error);
+          
+          if (error.message?.includes('Network request failed') || 
+              error.message?.includes('Failed to fetch') ||
+              error.name === 'AuthRetryableFetchError') {
+            return { 
+              error: 'Network error. Please check your internet connection and try again.'
+            };
+          }
+          
           return { error: error.message };
         }
 
@@ -129,6 +164,16 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         return {};
       } catch (error) {
         console.error("Login exception:", error);
+        
+        if (error instanceof Error && 
+            (error.message.includes('Network request failed') ||
+             error.message.includes('Failed to fetch') ||
+             error.message.includes('fetch'))) {
+          return { 
+            error: 'Network error. Please check your internet connection. Your Supabase instance might be paused or unreachable.'
+          };
+        }
+        
         return { error: "An unexpected error occurred" };
       }
     },

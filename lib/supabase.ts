@@ -1,11 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://ohwuhkbhdrliqupqtoaz.supabase.co';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9od3Voa2JoZHJsaXF1cHF0b2F6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI5NzU4NDYsImV4cCI6MjA3ODU1MTg0Nn0.16JLvvj1RJo4vVvrFqB7JOZL1u-hWTm1AvZZijhJOpk';
 
 console.log('Supabase URL:', supabaseUrl);
 console.log('Supabase Anon Key:', supabaseAnonKey ? 'Set' : 'Missing');
+console.log('Platform:', Platform.OS);
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -19,8 +21,47 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     headers: {
       'x-client-info': 'supabase-js-react-native',
     },
+    fetch: (url, options = {}) => {
+      console.log('[Supabase Fetch] URL:', url);
+      return fetch(url, {
+        ...options,
+        headers: {
+          ...options.headers,
+        },
+      }).catch(error => {
+        console.error('[Supabase Fetch Error]:', error);
+        console.error('[Supabase Fetch Error] URL was:', url);
+        throw error;
+      });
+    },
   },
 });
+
+export async function testSupabaseConnection(): Promise<{ success: boolean; error?: string }> {
+  try {
+    console.log('[Supabase Test] Testing connection to:', supabaseUrl);
+    
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('count')
+      .limit(1)
+      .maybeSingle();
+    
+    if (error && error.code !== 'PGRST116') {
+      console.error('[Supabase Test] Connection test failed:', error);
+      return { success: false, error: error.message };
+    }
+    
+    console.log('[Supabase Test] Connection successful');
+    return { success: true };
+  } catch (error) {
+    console.error('[Supabase Test] Connection test exception:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+}
 
 const SIGNUP_ATTEMPTS_KEY = '@signup_attempts';
 const RATE_LIMIT_DURATION = 5 * 60 * 1000;

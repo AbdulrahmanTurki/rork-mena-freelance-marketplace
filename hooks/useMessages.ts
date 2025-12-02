@@ -61,6 +61,12 @@ export function useMessages(orderId?: string) {
 
       if (error) {
         console.error("Error fetching messages:", error);
+        
+        if (error.message?.includes('FetchError') || 
+            error.message?.includes('Network request failed')) {
+          throw new Error('Unable to connect to server. Please check your internet connection.');
+        }
+        
         throw error;
       }
 
@@ -138,6 +144,12 @@ export function useConversations() {
 
       if (error) {
         console.error("Error fetching conversations:", error);
+        
+        if (error.message?.includes('FetchError') || 
+            error.message?.includes('Network request failed')) {
+          throw new Error('Unable to connect to server. Please check your internet connection.');
+        }
+        
         throw error;
       }
 
