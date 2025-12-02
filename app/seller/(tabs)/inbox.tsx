@@ -22,7 +22,7 @@ export default function SellerInbox() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   
-  const { data: conversationList = [], isLoading } = useConversations();
+  const { data: conversationList = [], isLoading, error } = useConversations();
   const { data: orders = [] } = useOrders();
 
   const filteredConversations = useMemo(() => {
@@ -150,11 +150,16 @@ export default function SellerInbox() {
               strokeWidth={1.5}
             />
             <Text style={[styles.emptyTitle, { color: theme.text }]}>
-              {isLoading ? "Loading..." : t("noConversations")}
+              {isLoading ? "Loading..." : error ? "Error loading messages" : t("noConversations")}
             </Text>
-            {!isLoading && (
+            {!isLoading && !error && (
               <Text style={[styles.emptyDescription, { color: theme.secondaryText }]}>
                 {t("conversationsWillAppear")}
+              </Text>
+            )}
+            {error && (
+              <Text style={[styles.emptyDescription, { color: BrandColors.error }]}>
+                {error instanceof Error ? error.message : "Failed to load conversations"}
               </Text>
             )}
           </View>

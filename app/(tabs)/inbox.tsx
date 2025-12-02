@@ -18,7 +18,7 @@ export default function InboxScreen() {
   const { t } = useLanguage();
   const { theme } = useTheme();
   const router = useRouter();
-  const { data: conversationList = [], isLoading } = useConversations();
+  const { data: conversationList = [], isLoading, error } = useConversations();
 
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -93,11 +93,16 @@ export default function InboxScreen() {
         <MessageCircle size={64} color={BrandColors.gray300} />
       </View>
       <Text style={[styles.emptyTitle, { color: theme.text }]}>
-        {isLoading ? "Loading..." : t("noMessages")}
+        {isLoading ? "Loading..." : error ? "Error loading messages" : t("noMessages")}
       </Text>
-      {!isLoading && (
+      {!isLoading && !error && (
         <Text style={[styles.emptyDescription, { color: theme.secondaryText }]}>
           {t("startConversation")}
+        </Text>
+      )}
+      {error && (
+        <Text style={[styles.emptyDescription, { color: BrandColors.error }]}>
+          {error instanceof Error ? error.message : "Failed to load conversations"}
         </Text>
       )}
     </View>
