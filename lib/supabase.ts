@@ -41,11 +41,17 @@ export async function testSupabaseConnection(): Promise<{ success: boolean; erro
   try {
     console.log('[Supabase Test] Testing connection to:', supabaseUrl);
     
-    const { data, error } = await supabase
+    const timeoutPromise = new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error('Connection timeout')), 5000)
+    );
+    
+    const fetchPromise = supabase
       .from('profiles')
       .select('count')
       .limit(1)
       .maybeSingle();
+    
+    const { error } = await Promise.race([fetchPromise, timeoutPromise]);
     
     if (error && error.code !== 'PGRST116') {
       console.error('[Supabase Test] Connection test failed:', error);
@@ -56,9 +62,20 @@ export async function testSupabaseConnection(): Promise<{ success: boolean; erro
     return { success: true };
   } catch (error) {
     console.error('[Supabase Test] Connection test exception:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    if (errorMessage.includes('Network request failed') || 
+        errorMessage.includes('timeout') ||
+        errorMessage.includes('Failed to fetch')) {
+      return { 
+        success: false, 
+        error: 'Unable to reach server. The database might be paused or unreachable.'
+      };
+    }
+    
     return { 
       success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: errorMessage
     };
   }
 }

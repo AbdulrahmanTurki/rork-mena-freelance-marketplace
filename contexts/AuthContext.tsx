@@ -1,6 +1,6 @@
 import createContextHook from "@nkzw/create-context-hook";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { supabase, checkSignupRateLimit, recordSignupAttempt, clearSignupAttempts, testSupabaseConnection } from "@/lib/supabase";
+import { supabase, checkSignupRateLimit, recordSignupAttempt, clearSignupAttempts } from "@/lib/supabase";
 import type { Database } from "@/types/database.types";
 
 export type UserType = "buyer" | "seller" | "guest" | null;
@@ -84,20 +84,30 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
   const loadUser = useCallback(async () => {
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      console.log('[AuthContext] Starting initial user load...');
+      
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error('Session check timeout')), 5000)
+      );
+      
+      const sessionPromise = supabase.auth.getSession();
+      
+      const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]);
 
       if (session?.user) {
+        console.log('[AuthContext] Session found, loading profile...');
         await loadUserProfile(session.user.id, session.user.email || "");
+      } else {
+        console.log('[AuthContext] No active session');
       }
     } catch (error) {
-      console.error("Failed to load user:", error);
+      console.error("[AuthContext] Failed to load user:", error);
       
       if (error instanceof Error && 
           (error.message.includes('Network request failed') ||
-           error.message.includes('Failed to fetch'))) {
-        console.error('[AuthContext] Network error during initial load. Supabase might be unreachable.');
+           error.message.includes('Failed to fetch') ||
+           error.message.includes('timeout'))) {
+        console.warn('[AuthContext] Network error during initial load. Continuing without authentication. Supabase might be paused or unreachable.');
       }
     } finally {
       setIsLoading(false);
@@ -130,18 +140,16 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       try {
         console.log('[AuthContext] Starting login...');
         
-        const connectionTest = await testSupabaseConnection();
-        if (!connectionTest.success) {
-          console.error('[AuthContext] Connection test failed:', connectionTest.error);
-          return { 
-            error: 'Unable to connect to server. Please check your internet connection and try again.'
-          };
-        }
+        const timeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Login timeout')), 10000)
+        );
         
-        const { data, error } = await supabase.auth.signInWithPassword({
+        const loginPromise = supabase.auth.signInWithPassword({
           email,
           password,
         });
+        
+        const { data, error } = await Promise.race([loginPromise, timeoutPromise]);
 
         if (error) {
           console.error("Login error:", error);
@@ -150,7 +158,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
               error.message?.includes('Failed to fetch') ||
               error.name === 'AuthRetryableFetchError') {
             return { 
-              error: 'Network error. Please check your internet connection and try again.'
+              error: 'Unable to connect to server. Please check your internet connection. The database might be paused.'
             };
           }
           
@@ -168,9 +176,10 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         if (error instanceof Error && 
             (error.message.includes('Network request failed') ||
              error.message.includes('Failed to fetch') ||
+             error.message.includes('timeout') ||
              error.message.includes('fetch'))) {
           return { 
-            error: 'Network error. Please check your internet connection. Your Supabase instance might be paused or unreachable.'
+            error: 'Unable to reach server. Your Supabase database might be paused or unreachable. Please check the Supabase dashboard.'
           };
         }
         
