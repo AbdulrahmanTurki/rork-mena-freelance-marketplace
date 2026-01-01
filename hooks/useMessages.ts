@@ -32,7 +32,7 @@ export interface Conversation {
 }
 
 export function useMessages(orderId?: string) {
-  const { user } = useAuth();
+  const { user, isGuest } = useAuth();
   const queryClient = useQueryClient();
 
   const query = useQuery({
@@ -73,12 +73,12 @@ export function useMessages(orderId?: string) {
       console.log(`Fetched ${data?.length || 0} messages`);
       return data as MessageWithSender[];
     },
-    enabled: !!user,
+    enabled: !!user && !isGuest,
     staleTime: 0,
   });
 
   useEffect(() => {
-    if (!orderId || !user) return;
+    if (!orderId || !user || isGuest) return;
 
     console.log("Setting up real-time subscription for messages:", orderId);
 
@@ -116,13 +116,13 @@ export function useMessages(orderId?: string) {
       console.log("Cleaning up real-time subscription for messages");
       supabase.removeChannel(channel);
     };
-  }, [orderId, user, queryClient]);
+  }, [orderId, user, isGuest, queryClient]);
 
   return query;
 }
 
 export function useConversations() {
-  const { user } = useAuth();
+  const { user, isGuest } = useAuth();
 
   return useQuery({
     queryKey: ["conversations", user?.id],
@@ -180,7 +180,7 @@ export function useConversations() {
       console.log(`Found ${conversations.length} conversations`);
       return conversations;
     },
-    enabled: !!user,
+    enabled: !!user && !isGuest,
     staleTime: 1000 * 60 * 2,
   });
 }

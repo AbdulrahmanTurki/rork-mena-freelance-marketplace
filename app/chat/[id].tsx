@@ -4,7 +4,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { Image } from "expo-image";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { Send, Paperclip } from "lucide-react-native";
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMessages, useSendMessage, useMarkAllMessagesAsRead } from "@/hooks/useMessages";
 import { useProfiles } from "@/hooks/useProfiles";
@@ -23,7 +23,7 @@ export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t } = useLanguage();
   const { theme } = useTheme();
-  const { user } = useAuth();
+  const { user, isGuest } = useAuth();
   const [messageText, setMessageText] = useState("");
   const flatListRef = useRef<FlatList>(null);
 
@@ -31,6 +31,12 @@ export default function ChatScreen() {
   const { data: profiles = [] } = useProfiles();
   const sendMessageMutation = useSendMessage();
   const markAsReadMutation = useMarkAllMessagesAsRead();
+
+  const markMessagesAsRead = useCallback(() => {
+    if (id && user?.id && !isGuest) {
+      markAsReadMutation.mutate(id as string);
+    }
+  }, [id, user?.id, isGuest, markAsReadMutation]);
 
   const otherUserId = messages.length > 0
     ? messages[0].sender_id === user?.id
@@ -41,13 +47,11 @@ export default function ChatScreen() {
   const otherUser = profiles.find((p) => p.id === otherUserId);
 
   useEffect(() => {
-    if (id && user?.id) {
-      markAsReadMutation.mutate(id as string);
-    }
-  }, [id, user?.id]);
+    markMessagesAsRead();
+  }, [markMessagesAsRead]);
 
   const handleSend = async () => {
-    if (messageText.trim() === "" || !user?.id || !id || !otherUserId) return;
+    if (messageText.trim() === "" || !user?.id || !id || !otherUserId || isGuest) return;
 
     const messageContent = messageText.trim();
     setMessageText("");
@@ -196,15 +200,15 @@ export default function ChatScreen() {
           <TouchableOpacity
             style={[
               styles.sendButton,
-              messageText.trim() === "" && styles.sendButtonDisabled,
+              (messageText.trim() === "" || isGuest) && styles.sendButtonDisabled,
             ]}
             onPress={handleSend}
-            disabled={messageText.trim() === ""}
+            disabled={messageText.trim() === "" || isGuest}
           >
             <Send
               size={20}
               color={
-                messageText.trim() === ""
+                messageText.trim() === "" || isGuest
                   ? BrandColors.gray400
                   : BrandColors.white
               }

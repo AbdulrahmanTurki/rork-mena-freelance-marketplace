@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/types/database.types";
+import { useAuth } from "@/contexts/AuthContext";
 
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"];
@@ -66,6 +67,8 @@ export function useProfiles(filters?: {
   userType?: "buyer" | "seller";
   verified?: boolean;
 }) {
+  const { isGuest } = useAuth();
+  
   return useQuery({
     queryKey: ["profiles", filters],
     queryFn: async () => {
@@ -104,6 +107,7 @@ export function useProfiles(filters?: {
       console.log(`Fetched ${profiles.length} profiles`);
       return profiles;
     },
+    enabled: !isGuest,
     staleTime: 1000 * 60 * 5,
   });
 }
