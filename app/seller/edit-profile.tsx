@@ -26,24 +26,27 @@ export default function EditProfileScreen() {
   const { data: profile, isLoading, error: profileError } = useProfile(user?.id || "");
   const updateProfile = useUpdateProfile();
 
-  const [formData, setFormData] = useState({
+  type FormData = {
+    fullName: string;
+    email: string;
+    phone: string;
+    city: string;
+  };
+
+  const [formData, setFormData] = useState<FormData>({
     fullName: "",
     email: "",
     phone: "",
     city: "",
-    title: "",
-    bio: "",
   });
 
   useEffect(() => {
     if (profile) {
       setFormData({
-        fullName: profile.full_name || "",
-        email: profile.email || "",
-        phone: profile.mobile_number || "",
-        city: profile.city || "",
-        title: profile.title || "",
-        bio: profile.bio || "",
+        fullName: profile.full_name ?? "",
+        email: profile.email ?? "",
+        phone: profile.mobile_number ?? "",
+        city: profile.city ?? "",
       });
     }
   }, [profile]);
@@ -70,8 +73,6 @@ export default function EditProfileScreen() {
           full_name: formData.fullName.trim(),
           mobile_number: formData.phone.trim() || null,
           city: formData.city.trim() || null,
-          title: formData.title.trim() || null,
-          bio: formData.bio.trim() || null,
         },
       });
 
@@ -232,51 +233,6 @@ export default function EditProfileScreen() {
                 />
               </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: theme.text }]}>
-                  Professional Title
-                </Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: theme.card,
-                      color: theme.text,
-                      borderColor: theme.border,
-                    },
-                  ]}
-                  value={formData.title}
-                  onChangeText={(text) =>
-                    setFormData({ ...formData, title: text })
-                  }
-                  placeholder="e.g., Senior Graphic Designer"
-                  placeholderTextColor={theme.tertiaryText}
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={[styles.label, { color: theme.text }]}>Bio</Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    styles.textArea,
-                    {
-                      backgroundColor: theme.card,
-                      color: theme.text,
-                      borderColor: theme.border,
-                    },
-                  ]}
-                  value={formData.bio}
-                  onChangeText={(text) =>
-                    setFormData({ ...formData, bio: text })
-                  }
-                  placeholder="Tell clients about yourself and your expertise..."
-                  placeholderTextColor={theme.tertiaryText}
-                  multiline
-                  numberOfLines={4}
-                  textAlignVertical="top"
-                />
-              </View>
 
               <View style={styles.inputGroup}>
                 <Text style={[styles.label, { color: theme.text }]}>City</Text>

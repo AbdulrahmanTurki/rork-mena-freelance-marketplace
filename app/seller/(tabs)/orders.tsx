@@ -3,7 +3,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Image } from "expo-image";
 import { Stack, useRouter } from "expo-router";
-import { Clock, MessageCircle, ChevronRight, Star, AlertCircle, Package } from "lucide-react-native";
+import { Clock, ChevronRight, AlertCircle, Package } from "lucide-react-native";
 import React, { useState, useMemo } from "react";
 import {
   ScrollView,
@@ -28,9 +28,9 @@ export default function SellerOrders() {
   const activeOrders = useMemo(() => {
     return orders.filter(
       (order) =>
-        order.status === "pending" ||
+        order.status === "pending_payment" ||
         order.status === "in_progress" ||
-        order.status === "pending_delivery" ||
+        order.status === "delivered" ||
         order.status === "revision_requested"
     );
   }, [orders]);
@@ -43,9 +43,11 @@ export default function SellerOrders() {
     return orders.filter((order) => order.status === "cancelled");
   }, [orders]);
 
-  const calculateTimeLeft = (dueDate: string) => {
+  const calculateTimeLeft = (targetDate: string | null | undefined) => {
+    if (!targetDate) return null;
     const now = new Date();
-    const due = new Date(dueDate);
+    const due = new Date(targetDate);
+    if (Number.isNaN(due.getTime())) return null;
     const diffMs = due.getTime() - now.getTime();
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffHours / 24);
@@ -56,8 +58,10 @@ export default function SellerOrders() {
     switch (status) {
       case "in_progress":
         return BrandColors.primary;
-      case "pending_delivery":
+      case "pending_payment":
         return BrandColors.secondary;
+      case "delivered":
+        return BrandColors.success;
       case "revision_requested":
         return BrandColors.accent;
       default:
@@ -69,8 +73,10 @@ export default function SellerOrders() {
     switch (status) {
       case "in_progress":
         return t("in Progress");
-      case "pending_delivery":
-        return t("pending Delivery");
+      case "pending_payment":
+        return t("pending Payment");
+      case "delivered":
+        return t("delivered");
       case "revision_requested":
         return t("revision Requested");
       default:
@@ -205,7 +211,7 @@ export default function SellerOrders() {
                 </View>
               ) : (
                 activeOrders.map((order) => {
-                  const timeLeft = calculateTimeLeft(order.due_date || order.created_at);
+                  const timeLeft = calculateTimeLeft(order.auto_release_at);
                   return (
                     <TouchableOpacity
                       key={order.id}
@@ -248,7 +254,7 @@ export default function SellerOrders() {
                             </Text>
                           </View>
 
-                          {timeLeft.hours > 0 && (
+                          {timeLeft && timeLeft.hours > 0 && (
                             <View style={[styles.dueInfo, { backgroundColor: getDaysLeftColor(timeLeft.days) + "15" }]}>
                               <Clock size={14} color={getDaysLeftColor(timeLeft.days)} />
                               <Text
@@ -265,7 +271,7 @@ export default function SellerOrders() {
                       </View>
 
                       <View style={styles.orderFooter}>
-                        <Text style={[styles.orderPrice, { color: theme.text }]}>{order.total_price} SAR</Text>
+                        <Text style={[styles.orderPrice, { color: theme.text }]}>SAR {order.gig_price}</Text>
                         <View style={styles.viewButton}>
                           <Text style={styles.viewButtonText}>{t("view Details")}</Text>
                           <ChevronRight size={16} color={BrandColors.primary} />
@@ -315,17 +321,12 @@ export default function SellerOrders() {
                             {order.completed_at ? new Date(order.completed_at).toLocaleDateString() : ""}
                           </Text>
                         </View>
-                        {order.rating && (
-                          <View style={styles.ratingBadge}>
-                            <Star size={14} color={BrandColors.secondary} fill={BrandColors.secondary} />
-                            <Text style={styles.ratingText}>{order.rating}</Text>
-                          </View>
-                        )}
+
                       </View>
                     </View>
 
                     <View style={styles.orderFooter}>
-                      <Text style={[styles.orderPrice, { color: theme.text }]}>{order.total_price} SAR</Text>
+                      <Text style={[styles.orderPrice, { color: theme.text }]}>SAR {order.gig_price}</Text>
                       <View style={styles.viewButton}>
                         <Text style={styles.viewButtonText}>{t("view Details")}</Text>
                         <ChevronRight size={16} color={BrandColors.primary} />
@@ -375,15 +376,11 @@ export default function SellerOrders() {
                           </Text>
                         </View>
                       </View>
-                      {order.cancellation_reason && (
-                        <Text style={[styles.cancelReason, { color: theme.secondaryText }]} numberOfLines={2}>
-                          {order.cancellation_reason}
-                        </Text>
-                      )}
+
                     </View>
 
                     <View style={styles.orderFooter}>
-                      <Text style={[styles.orderPrice, { color: theme.text }]}>{order.total_price} SAR</Text>
+                      <Text style={[styles.orderPrice, { color: theme.text }]}>SAR {order.gig_price}</Text>
                       <View style={styles.viewButton}>
                         <Text style={styles.viewButtonText}>{t("view Details")}</Text>
                         <ChevronRight size={16} color={BrandColors.primary} />
@@ -597,20 +594,7 @@ const styles = StyleSheet.create({
     fontWeight: "700" as const,
     color: BrandColors.gray700,
   },
-  ratingBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: BrandColors.secondary + "15",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    gap: 6,
-  },
-  ratingText: {
-    fontSize: 14,
-    fontWeight: "800" as const,
-    color: BrandColors.neutralDark,
-  },
+
   cancelReason: {
     fontSize: 13,
     fontWeight: "500" as const,

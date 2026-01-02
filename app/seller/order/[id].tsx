@@ -1,5 +1,4 @@
 import { BrandColors } from "@/constants/colors";
-import { useLanguage } from "@/contexts/LanguageContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useOrder, useDeliverOrder } from "@/hooks/useOrders";
 import { Image } from "expo-image";
@@ -15,7 +14,6 @@ import {
   RefreshCw,
   Upload,
   X,
-  Send,
   Link,
 } from "lucide-react-native";
 import React, { useState } from "react";
@@ -35,7 +33,6 @@ export default function SellerOrderDetailScreen() {
   const { id } = useLocalSearchParams();
   const { theme } = useTheme();
   const router = useRouter();
-  const [showResponseModal, setShowResponseModal] = useState(false);
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   const [deliveryMessage, setDeliveryMessage] = useState("");
   const [deliveryFiles, setDeliveryFiles] = useState<string[]>([]);
@@ -63,16 +60,22 @@ export default function SellerOrderDetailScreen() {
     );
   }
 
+  const getErrorMessage = (err: unknown) => {
+    if (err instanceof Error) return err.message;
+    if (typeof err === "string") return err;
+    if (typeof err === "object" && err !== null && "message" in err) {
+      const msg = (err as { message?: unknown }).message;
+      return typeof msg === "string" ? msg : "Unknown error occurred";
+    }
+    return "Unknown error occurred";
+  };
+
   if (error) {
-    const errorMessage = error instanceof Error 
-      ? error.message 
-      : typeof error === 'object' && error !== null 
-        ? (error as any).message || 'Unknown error occurred'
-        : String(error);
+    const errorMessage = getErrorMessage(error);
     console.error("Error fetching order:", {
       message: errorMessage,
       orderId: id,
-      errorType: typeof error
+      errorType: typeof error,
     });
     return (
       <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -89,11 +92,7 @@ export default function SellerOrderDetailScreen() {
             Error Loading Order
           </Text>
           <Text style={[styles.errorDescription, { color: theme.secondaryText }]}>
-            {error instanceof Error 
-              ? error.message 
-              : typeof error === 'object' && error !== null && 'message' in error
-                ? String(error.message)
-                : "Failed to load order details. Please try again."}
+            {getErrorMessage(error) || "Failed to load order details. Please try again."}
           </Text>
         </View>
       </View>
@@ -375,7 +374,7 @@ export default function SellerOrderDetailScreen() {
               >
                 <View style={styles.revisionHeader}>
                   <Text style={[styles.revisionDate, { color: theme.secondaryText }]}>
-                    {formatDate(revision.requested_at)}
+                    {formatDate(revision.created_at)}
                   </Text>
                   <View
                     style={[
@@ -415,7 +414,7 @@ export default function SellerOrderDetailScreen() {
               >
                 <View style={styles.revisionHeader}>
                   <Text style={[styles.revisionDate, { color: theme.secondaryText }]}>
-                    {formatDate(revision.requested_at)}
+                    {formatDate(revision.created_at)}
                   </Text>
                   <View
                     style={[
@@ -501,7 +500,7 @@ export default function SellerOrderDetailScreen() {
             <Text style={styles.contactButtonText}>Contact Buyer</Text>
           </TouchableOpacity>
 
-          {(order.status === "active" || order.status === "in_progress" || order.status === "revision_requested") && (
+          {(order.status === "pending_payment" || order.status === "in_progress" || order.status === "revision_requested") && (
             <TouchableOpacity
               style={styles.deliverButton}
               onPress={handleDeliverOrder}
