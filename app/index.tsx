@@ -11,6 +11,7 @@ export default function Index() {
 
   useEffect(() => {
     async function checkAdminStatus() {
+      // 1. If not logged in, stop checking
       if (!user || user.type === "guest") {
         setIsAdmin(false);
         setCheckingAdmin(false);
@@ -18,21 +19,18 @@ export default function Index() {
       }
 
       try {
-        console.log("[Index] Checking if user is admin via RPC:", user.id);
-        // UPDATED: Use RPC instead of direct select
+        console.log("[Index] Checking admin status via RPC...");
+        // 2. USE THE NEW SECURE FUNCTION (Fixes the redirect loop)
         const { data: adminRole, error } = await supabase.rpc('get_my_admin_role');
 
-        if (error) {
-          console.log("[Index] RPC check failed or not admin:", error.message);
-          setIsAdmin(false);
-        } else if (adminRole) {
-          console.log("[Index] User is admin with role:", adminRole.role);
+        if (adminRole) {
+          console.log("[Index] Admin confirmed:", adminRole.role);
           setIsAdmin(true);
         } else {
           setIsAdmin(false);
         }
       } catch (error) {
-        console.error("[Index] Error checking admin status:", error);
+        console.error("[Index] Error checking admin:", error);
         setIsAdmin(false);
       } finally {
         setCheckingAdmin(false);
@@ -45,28 +43,24 @@ export default function Index() {
   if (isLoading || checkingAdmin) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color="#1DBF73" />
       </View>
     );
   }
 
   if (!user) {
-    console.log("[Index] No user, redirecting to onboarding");
     return <Redirect href="/onboarding" />;
   }
 
-  // Check if user is an admin first
+  // 3. Redirect based on status
   if (isAdmin) {
-    console.log("[Index] User is admin, redirecting to admin panel");
     return <Redirect href="/admin/(tabs)/dashboard" />;
   }
-
-  console.log("[Index] Regular user check...");
 
   if (user.type === "seller") {
     if (user.verificationStatus === "approved") {
       return <Redirect href="/seller/(tabs)/dashboard" />;
-    } else if (user.verificationStatus === "pending" || user.verificationStatus === "rejected") {
+    } else if (user.verificationStatus === "pending") {
       return <Redirect href="/seller/verification-pending" />;
     } else {
       return <Redirect href="/seller/verification-onboarding" />;
