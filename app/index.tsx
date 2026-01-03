@@ -5,7 +5,14 @@ import { ActivityIndicator, View } from "react-native";
 export default function Index() {
   const { user, isLoading } = useAuth();
 
+  console.log("[Index] ==========================");
+  console.log("[Index] isLoading:", isLoading);
+  console.log("[Index] user:", JSON.stringify(user, null, 2));
+  console.log("[Index] user?.type:", user?.type);
+  console.log("[Index] ==========================");
+
   if (isLoading) {
+    console.log("[Index] Still loading, showing spinner");
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
         <ActivityIndicator size="large" />
@@ -20,7 +27,7 @@ export default function Index() {
 
   // Check if user is an admin first
   if (user.type === "admin") {
-    console.log("[Index] User is admin, redirecting to admin panel");
+    console.log("[Index] ✅ User is admin, redirecting to admin panel");
     return <Redirect href="/admin/(tabs)/dashboard" />;
   }
 

@@ -28,18 +28,29 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       // First check if user is an admin
       console.log("[AuthContext] Checking for admin role...");
       const { data: adminRole, error: adminError } = await supabase
-        .rpc('get_my_admin_role');
+        .from('admin_roles')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+      
+      console.log("[AuthContext] Admin role query result:", { adminRole, adminError });
       
       if (!adminError && adminRole) {
-        console.log("[AuthContext] User is an admin:", adminRole.role);
+        console.log("[AuthContext] ✅ User is an admin:", adminRole.role);
         const userData: User = {
           id: userId,
           email: email,
           name: email.split("@")[0],
           type: "admin",
         };
+        console.log("[AuthContext] Setting admin user state:", JSON.stringify(userData, null, 2));
         setUser(userData);
+        console.log("[AuthContext] ✅ Admin user state SET! Returning now.");
         return;
+      } else if (adminError) {
+        console.log("[AuthContext] ⚠️ Error checking admin role:", adminError);
+      } else {
+        console.log("[AuthContext] ℹ️ No admin role found for user");
       }
       
       console.log("[AuthContext] Not an admin, loading regular profile...");
@@ -185,7 +196,9 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         }
 
         if (data.user) {
+          console.log('[AuthContext] Login successful, loading user profile...');
           await loadUserProfile(data.user.id, data.user.email || "");
+          console.log('[AuthContext] User profile loaded after login');
         }
 
         return {};
