@@ -1,7 +1,9 @@
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { Platform } from 'react-native';
+import { useAdmin } from '@/contexts/AdminContext';
+import { Platform, ActivityIndicator, View, StyleSheet } from 'react-native';
+import { useEffect, useState } from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -13,7 +15,36 @@ import {
 export default function AdminTabsLayout() {
   const { theme } = useTheme();
   const { language } = useLanguage();
+  const { adminUser } = useAdmin();
+  const router = useRouter();
+  const [isChecking, setIsChecking] = useState(true);
   const isRTL = language === 'ar';
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!adminUser) {
+        console.log('[AdminTabs] No admin user, redirecting to login');
+        router.replace('/admin/login');
+      } else {
+        console.log('[AdminTabs] Admin user found:', adminUser.email);
+      }
+      setIsChecking(false);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [adminUser, router]);
+
+  if (isChecking) {
+    return (
+      <View style={[styles.loading, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
+      </View>
+    );
+  }
+
+  if (!adminUser) {
+    return null;
+  }
 
   const t = {
     dashboard: isRTL ? 'لوحة التحكم' : 'Dashboard',
@@ -78,3 +109,11 @@ export default function AdminTabsLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  loading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});
