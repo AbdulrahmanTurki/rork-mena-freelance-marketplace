@@ -1,167 +1,119 @@
 import { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView
-} from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useAdmin } from '@/contexts/AdminContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { supabase } from '@/lib/supabase'; // Direct access to debug
-import { Shield, AlertTriangle, CheckCircle } from 'lucide-react-native';
+import { Lock, Mail, ArrowRight } from 'lucide-react-native';
 
 export default function AdminLoginScreen() {
-  const { theme } = useTheme();
   const router = useRouter();
+  const { loginAdmin } = useAdmin();
+  const { theme } = useTheme();
+  
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [logs, setLogs] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const addLog = (msg: string) => setLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter both email and password');
+      return;
+    }
 
-  const runDiagnostics = async () => {
-    if (!email || !password) return addLog('Please enter email/password');
-    
     setLoading(true);
-    setLogs(['Starting Diagnostics...']);
-
     try {
-      // 1. Test Auth
-      addLog(`Attempting Login: ${email}`);
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (authError) {
-        addLog(`❌ Auth Failed: ${authError.message}`);
-        setLoading(false);
-        return;
-      }
-
-      if (!authData.user) {
-        addLog('❌ Auth succeeded but no User returned!?');
-        setLoading(false);
-        return;
-      }
-      addLog('✅ Auth Success. User ID: ' + authData.user.id);
-
-      // 2. Test Admin Roles Table Read
-      addLog('Testing "admin_roles" table read...');
-      const { data: roleData, error: roleError } = await supabase
-        .from('admin_roles')
-        .select('*')
-        .eq('user_id', authData.user.id);
-
-      if (roleError) {
-        addLog(`❌ Admin Role Fetch Error: ${roleError.message}`);
-        addLog(`Code: ${roleError.code}, Details: ${roleError.details}`);
-        setLoading(false);
-        return;
-      }
-
-      if (!roleData || roleData.length === 0) {
-        addLog('❌ Table read success, but NO ROWS found for this user.');
-        addLog('ACTION: Run the SQL script to add the admin role again.');
+      console.log('Attempting admin login...');
+      const success = await loginAdmin(email, password);
+      
+      if (success) {
+        console.log('Login successful, redirecting to dashboard...');
+        // FORCE Redirect to the Admin Dashboard
+        router.replace('/admin/(tabs)/dashboard');
       } else {
-        addLog(`✅ Found Admin Role: ${JSON.stringify(roleData[0])}`);
-        
-        // 3. Test Profile Read
-        addLog('Testing "profiles" table read...');
-        const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('full_name, email')
-            .eq('id', authData.user.id)
-            .single();
-            
-        if (profileError) {
-             addLog(`⚠️ Profile Warning: ${profileError.message}`);
-        } else {
-             addLog(`✅ Profile Found: ${profileData?.full_name}`);
-        }
-
-        addLog('--- DIAGNOSTICS PASSED ---');
-        addLog('Redirecting to dashboard in 3 seconds...');
-        setTimeout(() => {
-            router.replace('/admin/(tabs)/dashboard');
-        }, 3000);
+        Alert.alert('Login Failed', 'Invalid credentials or insufficient permissions.');
       }
-
-    } catch (err: any) {
-      addLog(`❌ CRITICAL CRASH: ${err.message}`);
+    } catch (error) {
+      console.error('Login error:', error);
+      Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.content}>
-        
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={[styles.container, { backgroundColor: theme.background }]}
+    >
+      <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-            <Text style={[styles.title, { color: theme.text }]}>Debug Mode</Text>
-        </View>
-
-        {/* LOG WINDOW */}
-        <View style={[styles.logWindow, { backgroundColor: '#1a1a1a', borderColor: theme.border }]}>
-            <ScrollView nestedScrollEnabled>
-                {logs.length === 0 ? (
-                    <Text style={{color: '#666'}}>Logs will appear here...</Text>
-                ) : (
-                    logs.map((log, i) => (
-                        <Text key={i} style={{color: log.includes('❌') ? '#ff4444' : log.includes('✅') ? '#00cc00' : '#ddd', marginBottom: 4, fontSize: 12}}>
-                            {log}
-                        </Text>
-                    ))
-                )}
-            </ScrollView>
+            <View style={[styles.iconContainer, { backgroundColor: theme.primary + '20' }]}>
+                <Lock size={40} color={theme.primary} />
+            </View>
+            <Text style={[styles.title, { color: theme.text }]}>Admin Access</Text>
+            <Text style={[styles.subtitle, { color: theme.secondaryText }]}>
+                Enter your credentials to continue
+            </Text>
         </View>
 
         <View style={styles.form}>
-          <TextInput
-            style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.border }]}
-            placeholder="Email"
-            placeholderTextColor={theme.tertiaryText}
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-          />
-          <TextInput
-            style={[styles.input, { backgroundColor: theme.inputBackground, color: theme.text, borderColor: theme.border }]}
-            placeholder="Password"
-            placeholderTextColor={theme.tertiaryText}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
+          <View style={styles.inputContainer}>
+            <Mail size={20} color={theme.tertiaryText} style={styles.inputIcon} />
+            <TextInput
+              style={[styles.input, { color: theme.text, backgroundColor: theme.inputBackground, borderColor: theme.border }]}
+              placeholder="Email"
+              placeholderTextColor={theme.tertiaryText}
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Lock size={20} color={theme.tertiaryText} style={styles.inputIcon} />
+            <TextInput
+              style={[styles.input, { color: theme.text, backgroundColor: theme.inputBackground, borderColor: theme.border }]}
+              placeholder="Password"
+              placeholderTextColor={theme.tertiaryText}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+          </View>
 
           <TouchableOpacity
             style={[styles.button, { backgroundColor: theme.primary }]}
-            onPress={runDiagnostics}
+            onPress={handleLogin}
             disabled={loading}
           >
-            <Text style={styles.buttonText}>{loading ? 'Running Tests...' : 'Run Diagnostics'}</Text>
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <View style={styles.buttonContent}>
+                <Text style={styles.buttonText}>Login to Dashboard</Text>
+                <ArrowRight size={20} color="#fff" />
+              </View>
+            )}
           </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { flex: 1, padding: 20 },
-  header: { alignItems: 'center', marginBottom: 20 },
-  title: { fontSize: 24, fontWeight: 'bold' },
-  logWindow: { height: 250, width: '100%', borderWidth: 1, borderRadius: 8, padding: 10, marginBottom: 20 },
+  scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 24 },
+  header: { alignItems: 'center', marginBottom: 40 },
+  iconContainer: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  title: { fontSize: 28, fontWeight: 'bold', marginBottom: 8 },
+  subtitle: { fontSize: 16 },
   form: { width: '100%' },
-  input: { height: 50, borderRadius: 8, paddingHorizontal: 16, marginBottom: 16, borderWidth: 1 },
-  button: { height: 50, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  inputContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+  inputIcon: { position: 'absolute', left: 16, zIndex: 1 },
+  input: { flex: 1, height: 56, borderRadius: 12, paddingLeft: 48, paddingRight: 16, borderWidth: 1 },
+  button: { height: 56, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
+  buttonContent: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
 });
