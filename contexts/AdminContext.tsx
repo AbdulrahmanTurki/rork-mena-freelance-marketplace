@@ -13,7 +13,6 @@ export interface AdminUser {
   permissions: string[];
 }
 
-// Keep your existing interfaces
 export interface User { id: string; name: string; email: string; type: 'buyer' | 'seller'; status: 'active' | 'suspended' | 'banned' | 'pending'; verified: boolean; joinedDate: string; avatar?: string; rating?: number; totalOrders?: number; totalEarnings?: number; }
 export interface Gig { id: string; title: string; sellerId: string; sellerName: string; category: string; price: number; status: 'active' | 'paused' | 'pending_approval' | 'rejected'; image?: string; rating?: number; orders: number; }
 export interface Order { id: string; gigTitle: string; buyerId: string; buyerName: string; sellerId: string; sellerName: string; status: 'active' | 'pending' | 'completed' | 'cancelled' | 'disputed'; amount: number; date: string; deliveryDate?: string; }
@@ -34,15 +33,16 @@ export const [AdminProvider, useAdmin] = createContextHook(() => {
   const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
 
-  // Helper to parse permissions
+  // Helper to safely parse permissions
   const parsePermissions = (permissionsData: any) => {
     if (!permissionsData) return ['all'];
     if (typeof permissionsData === 'string') return [permissionsData];
-    // If it's the JSON object { "all": true }
-    if (typeof permissionsData === 'object' && !Array.isArray(permissionsData)) {
+    if (Array.isArray(permissionsData)) return permissionsData;
+    // Handle JSON object format { "all": true }
+    if (typeof permissionsData === 'object') {
        return Object.keys(permissionsData).filter(key => permissionsData[key] === true);
     }
-    return Array.isArray(permissionsData) ? permissionsData : ['all'];
+    return ['all'];
   };
 
   const checkAdminSession = useCallback(async () => {
@@ -54,22 +54,20 @@ export const [AdminProvider, useAdmin] = createContextHook(() => {
         return;
       }
 
-      // FIX 1: Use the secure RPC function instead of .from('admin_roles')
+      // 1. UPDATED: Use RPC function instead of direct table query
       const { data: adminRole, error: roleError } = await supabase.rpc('get_my_admin_role');
 
       if (roleError) {
-        console.error('RPC Check Error:', roleError);
+        console.error('RPC Error checking admin session:', roleError);
         setAdminUser(null);
         return;
       }
 
       if (!adminRole) {
-        console.log('No admin role returned.');
         setAdminUser(null);
         return;
       }
 
-      // Fetch profile for the name
       const { data: profile } = await supabase
         .from('profiles')
         .select('full_name, email')
@@ -84,7 +82,7 @@ export const [AdminProvider, useAdmin] = createContextHook(() => {
         permissions: parsePermissions(adminRole.permissions),
       };
 
-      console.log('[AdminContext] Session restored:', admin.email);
+      console.log('[AdminContext] Session restored for:', admin.email);
       setAdminUser(admin);
     } catch (error) {
       console.error('Error checking admin session:', error);
@@ -100,15 +98,15 @@ export const [AdminProvider, useAdmin] = createContextHook(() => {
       });
 
       if (authError || !authData.user) {
-        console.error('Login Auth Error:', authError);
+        console.error('Admin login auth error:', authError);
         return false;
       }
 
-      // FIX 2: Use RPC here as well
+      // 2. UPDATED: Use RPC function here too
       const { data: adminRole, error: roleError } = await supabase.rpc('get_my_admin_role');
 
       if (roleError || !adminRole) {
-        console.error('Login Failed: Not an admin (RPC error or null)', roleError);
+        console.error('Login failed: User is not an admin (RPC returned null or error)', roleError);
         await supabase.auth.signOut();
         return false;
       }
@@ -127,7 +125,7 @@ export const [AdminProvider, useAdmin] = createContextHook(() => {
         permissions: parsePermissions(adminRole.permissions),
       };
 
-      console.log('[AdminContext] Login Successful:', admin.email);
+      console.log('[AdminContext] Login success:', admin.email);
       setAdminUser(admin);
       await saveAdminData({ adminUser: admin });
       return true;
@@ -150,14 +148,41 @@ export const [AdminProvider, useAdmin] = createContextHook(() => {
         }
       }
     );
+
     return () => {
       authListener.subscription.unsubscribe();
     };
   }, [checkAdminSession]);
 
-  // ... Keep the rest of your mock/helper functions exactly as they were ...
-  const loadAdminData = async () => { /* ... keep existing code ... */ };
-  const saveAdminData = async (data: any) => { /* ... keep existing code ... */ };
+  const loadAdminData = async () => {
+    try {
+      const stored = await AsyncStorage.getItem('adminData');
+      if (stored) {
+        const data = JSON.parse(stored);
+        setAdminUser(data.adminUser);
+        setUsers(data.users || []);
+        setGigs(data.gigs || []);
+        setOrders(data.orders || []);
+        setDisputes(data.disputes || []);
+        setPayoutRequests(data.payoutRequests || []);
+        setSupportTickets(data.supportTickets || []);
+        setActivityLogs(data.activityLogs || []);
+      }
+    } catch (error) {
+      console.error('Error loading admin data:', error);
+    }
+  };
+
+  const saveAdminData = async (data: any) => {
+    try {
+      const existingData = await AsyncStorage.getItem('adminData');
+      const parsed = existingData ? JSON.parse(existingData) : {};
+      await AsyncStorage.setItem('adminData', JSON.stringify({ ...parsed, ...data }));
+    } catch (error) {
+      console.error('Error saving admin data:', error);
+    }
+  };
+
   const logoutAdmin = async () => {
     try {
       await supabase.auth.signOut();
@@ -172,8 +197,8 @@ export const [AdminProvider, useAdmin] = createContextHook(() => {
     if (!adminUser) return false;
     return adminUser.permissions.includes('all') || adminUser.permissions.includes(permission);
   };
-
-  // Keep all your action functions (approveUser, etc.) below
+  
+  // Placeholder actions to prevent TypeScript errors (Add logic back if needed)
   const addActivityLog = async (action: string, target: string, targetId: string, details: string) => {};
   const approveUser = async (userId: string) => {};
   const rejectUser = async (userId: string, reason: string) => {};
