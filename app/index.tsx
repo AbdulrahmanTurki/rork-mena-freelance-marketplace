@@ -1,51 +1,11 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { Redirect } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
 
 export default function Index() {
   const { user, isLoading } = useAuth();
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
-  const [checkingAdmin, setCheckingAdmin] = useState(true);
 
-  useEffect(() => {
-    async function checkAdminStatus() {
-      if (!user || user.type === "guest") {
-        setIsAdmin(false);
-        setCheckingAdmin(false);
-        return;
-      }
-
-      try {
-        console.log("[Index] Checking if user is admin:", user.id);
-        const { data: adminRole, error } = await supabase
-          .from("admin_roles")
-          .select("role")
-          .eq("user_id", user.id)
-          .single();
-
-        if (error) {
-          console.log("[Index] No admin role found:", error.message);
-          setIsAdmin(false);
-        } else if (adminRole) {
-          console.log("[Index] User is admin with role:", adminRole.role);
-          setIsAdmin(true);
-        } else {
-          setIsAdmin(false);
-        }
-      } catch (error) {
-        console.error("[Index] Error checking admin status:", error);
-        setIsAdmin(false);
-      } finally {
-        setCheckingAdmin(false);
-      }
-    }
-
-    checkAdminStatus();
-  }, [user]);
-
-  if (isLoading || checkingAdmin) {
+  if (isLoading) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
         <ActivityIndicator size="large" />
@@ -59,7 +19,7 @@ export default function Index() {
   }
 
   // Check if user is an admin first
-  if (isAdmin) {
+  if (user.type === "admin") {
     console.log("[Index] User is admin, redirecting to admin panel");
     return <Redirect href="/admin/(tabs)/dashboard" />;
   }

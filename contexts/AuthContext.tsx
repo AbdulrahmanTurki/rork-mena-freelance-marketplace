@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase, checkSignupRateLimit, recordSignupAttempt, clearSignupAttempts } from "@/lib/supabase";
 import type { Database } from "@/types/database.types";
 
-export type UserType = "buyer" | "seller" | "guest" | null;
+export type UserType = "buyer" | "seller" | "admin" | "guest" | null;
 
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 
@@ -24,6 +24,25 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   const loadUserProfile = useCallback(async (userId: string, email: string) => {
     try {
       console.log("[AuthContext] Loading profile for user:", userId);
+      
+      // First check if user is an admin
+      console.log("[AuthContext] Checking for admin role...");
+      const { data: adminRole, error: adminError } = await supabase
+        .rpc('get_my_admin_role');
+      
+      if (!adminError && adminRole) {
+        console.log("[AuthContext] User is an admin:", adminRole.role);
+        const userData: User = {
+          id: userId,
+          email: email,
+          name: email.split("@")[0],
+          type: "admin",
+        };
+        setUser(userData);
+        return;
+      }
+      
+      console.log("[AuthContext] Not an admin, loading regular profile...");
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("*")
