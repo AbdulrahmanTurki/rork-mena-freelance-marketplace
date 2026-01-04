@@ -61,7 +61,10 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         .single();
 
       if (profileError) {
-        console.error("[AuthContext] Error loading profile:", profileError);
+        console.error("[AuthContext] Error loading profile:", JSON.stringify(profileError, null, 2));
+        console.error("[AuthContext] Error message:", profileError.message);
+        console.error("[AuthContext] Error details:", profileError.details);
+        console.error("[AuthContext] Error code:", profileError.code);
         
         if (profileError.message?.includes('FetchError') ||
             profileError.message?.includes('Network request failed')) {
