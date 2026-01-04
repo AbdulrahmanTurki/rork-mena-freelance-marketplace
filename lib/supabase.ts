@@ -20,19 +20,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   global: {
     headers: {
       'x-client-info': 'supabase-js-react-native',
-    },
-    fetch: (url, options = {}) => {
-      console.log('[Supabase Fetch] URL:', url);
-      return fetch(url, {
-        ...options,
-        headers: {
-          ...options.headers,
-        },
-      }).catch(error => {
-        console.error('[Supabase Fetch Error]:', error);
-        console.error('[Supabase Fetch Error] URL was:', url);
-        throw error;
-      });
+      'apikey': supabaseAnonKey,
     },
   },
 });
