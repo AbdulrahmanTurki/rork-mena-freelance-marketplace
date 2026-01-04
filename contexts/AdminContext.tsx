@@ -1,6 +1,7 @@
 import createContextHook from "@nkzw/create-context-hook";
 import { useCallback, useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
 
 export type AdminRole = "super_admin" | "admin" | "moderator";
 
@@ -146,6 +147,7 @@ const mockActivityLogs: ActivityLog[] = [];
 const mockSupportTickets: SupportTicket[] = [];
 
 export const [AdminProvider, useAdmin] = createContextHook(() => {
+  const authContext = useAuth();
   const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [users, setUsers] = useState<User[]>(mockUsers);
@@ -158,21 +160,27 @@ export const [AdminProvider, useAdmin] = createContextHook(() => {
 
   const checkAdminSession = useCallback(async () => {
     try {
+      console.log('[AdminContext] Checking admin session...');
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session?.user) {
+        console.log('[AdminContext] No session found');
         setAdminUser(null);
+        setIsLoading(false);
         return;
       }
 
+      console.log('[AdminContext] Session found, checking admin role...');
       const { data: adminRole, error: roleError } = await supabase.rpc('get_my_admin_role');
 
       if (roleError || !adminRole) {
-        console.log('Not an admin user or RPC error:', roleError);
+        console.log('[AdminContext] Not an admin user or RPC error:', roleError);
         setAdminUser(null);
+        setIsLoading(false);
         return;
       }
 
+      console.log('[AdminContext] Admin role confirmed:', adminRole.role);
       const { data: profile } = await supabase
         .from('profiles')
         .select('*')
@@ -187,9 +195,10 @@ export const [AdminProvider, useAdmin] = createContextHook(() => {
         permissions: ['all'],
       };
 
+      console.log('[AdminContext] Admin user loaded:', admin.email);
       setAdminUser(admin);
     } catch (error) {
-      console.error('Session check error:', error);
+      console.error('[AdminContext] Session check error:', error);
       setAdminUser(null);
     } finally {
       setIsLoading(false);
@@ -197,8 +206,17 @@ export const [AdminProvider, useAdmin] = createContextHook(() => {
   }, []);
 
   useEffect(() => {
+    console.log('[AdminContext] Initial mount, checking admin session');
     checkAdminSession();
   }, [checkAdminSession]);
+
+  useEffect(() => {
+    if (authContext.user && authContext.user.type === 'admin' && !adminUser && !isLoading) {
+      console.log('[AdminContext] AuthContext detected admin user, reloading admin session');
+      setIsLoading(true);
+      checkAdminSession();
+    }
+  }, [authContext.user, adminUser, isLoading, checkAdminSession]);
 
   const loginAdmin = useCallback(async (email: string, password: string): Promise<boolean> => {
     try {
