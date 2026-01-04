@@ -83,8 +83,7 @@ export default function DisputesManagementScreen() {
 
   const handleResolve = async (outcome: string) => {
     if (selectedDispute) {
-      const refund = refundAmount ? parseFloat(refundAmount) : undefined;
-      await resolveDispute(selectedDispute.id, outcome, refund);
+      await resolveDispute(selectedDispute.id);
       setShowDisputeModal(false);
       setSelectedDispute(null);
       setResolution('');
@@ -136,7 +135,7 @@ export default function DisputesManagementScreen() {
         <View style={styles.footerItem}>
           <MessageCircle size={14} color={theme.tertiaryText} />
           <Text style={[styles.footerText, { color: theme.tertiaryText }]}>
-            {dispute.messages.length} {isRTL ? 'رسالة' : 'messages'}
+            {dispute.messages?.length || 0} {isRTL ? 'رسالة' : 'messages'}
           </Text>
         </View>
       </View>
@@ -310,7 +309,7 @@ export default function DisputesManagementScreen() {
                     </>
                   )}
 
-                  {selectedDispute.messages.length > 0 && (
+                  {selectedDispute.messages && selectedDispute.messages.length > 0 && (
                     <View style={styles.messagesSection}>
                       <Text style={[styles.messagesTitle, { color: theme.text }]}>
                         {isRTL ? 'الرسائل' : 'Messages'}
@@ -321,10 +320,10 @@ export default function DisputesManagementScreen() {
                           style={[styles.messageCard, { backgroundColor: theme.inputBackground }]}
                         >
                           <Text style={[styles.messageSender, { color: theme.primary }]}>
-                            {msg.senderName}
+                            {msg.senderId}
                           </Text>
                           <Text style={[styles.messageText, { color: theme.text }]}>
-                            {msg.message}
+                            {msg.text}
                           </Text>
                           <Text style={[styles.messageTime, { color: theme.tertiaryText }]}>
                             {new Date(msg.timestamp).toLocaleString()}
