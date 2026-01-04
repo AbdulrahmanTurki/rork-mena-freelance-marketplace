@@ -111,7 +111,13 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       });
       setUser(userData);
     } catch (error) {
-      console.error("[AuthContext] Error in loadUserProfile:", error);
+      console.error("[AuthContext] Error in loadUserProfile:");
+      if (error instanceof Error) {
+        console.error("[AuthContext] Error message:", error.message);
+        console.error("[AuthContext] Error stack:", error.stack);
+      } else {
+        console.error("[AuthContext] Error details:", JSON.stringify(error, null, 2));
+      }
     }
   }, []);
 
