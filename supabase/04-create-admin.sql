@@ -1,9 +1,13 @@
 -- =============================================================================
 -- CREATE ADMIN USER
 -- Run this after 03-functions-triggers.sql
+-- This script is IDEMPOTENT - safe to run multiple times
 -- 
 -- IMPORTANT: Change the email and password before running!
 -- =============================================================================
+
+-- Ensure pgcrypto extension is available
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- =============================================================================
 -- CONFIGURATION - CHANGE THESE VALUES

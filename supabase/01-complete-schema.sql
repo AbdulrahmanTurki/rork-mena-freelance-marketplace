@@ -1,10 +1,12 @@
 -- =============================================================================
 -- COMPLETE DATABASE SCHEMA
 -- Run this first to create all tables and structure
+-- This script is IDEMPOTENT - safe to run multiple times
 -- =============================================================================
 
--- Enable UUID extension
+-- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- =============================================================================
 -- TABLES
@@ -403,20 +405,79 @@ CREATE INDEX IF NOT EXISTS idx_admin_roles_user_id ON admin_roles(user_id);
 -- =============================================================================
 
 -- Insert default escrow settings if not exists
-INSERT INTO escrow_settings (id)
-SELECT uuid_generate_v4()
-WHERE NOT EXISTS (SELECT 1 FROM escrow_settings LIMIT 1);
+DO $
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM escrow_settings LIMIT 1) THEN
+    INSERT INTO escrow_settings (
+      id,
+      clearance_period_days,
+      auto_release_days,
+      platform_fee_percentage,
+      min_withdrawal_amount,
+      refund_window_days,
+      dispute_resolution_days
+    ) VALUES (
+      uuid_generate_v4(),
+      7,
+      14,
+      10.00,
+      50.00,
+      30,
+      14
+    );
+    RAISE NOTICE '✓ Default escrow settings created';
+  ELSE
+    RAISE NOTICE '→ Escrow settings already exist, skipping';
+  END IF;
+END $;
 
 -- =============================================================================
 -- VERIFICATION
 -- =============================================================================
 
-DO $$
+DO $
+DECLARE
+  table_count INTEGER;
+  expected_tables TEXT[] := ARRAY[
+    'profiles', 'seller_verifications', 'categories', 'gigs', 'orders',
+    'order_revisions', 'messages', 'seller_wallets', 'withdrawal_requests',
+    'transactions', 'financial_logs', 'escrow_settings', 'reviews',
+    'disputes', 'admin_roles', 'notifications', 'user_preferences', 'payment_methods'
+  ];
+  missing_tables TEXT[];
+  tbl TEXT;
 BEGIN
   RAISE NOTICE '====================================================';
   RAISE NOTICE '✓ SCHEMA SETUP COMPLETE';
   RAISE NOTICE '====================================================';
-  RAISE NOTICE 'All tables created successfully';
+  
+  -- Count existing tables
+  SELECT COUNT(*) INTO table_count
+  FROM information_schema.tables
+  WHERE table_schema = 'public'
+  AND table_name = ANY(expected_tables);
+  
+  RAISE NOTICE 'Tables found: % / %', table_count, array_length(expected_tables, 1);
+  
+  -- Check for missing tables
+  missing_tables := ARRAY[]::TEXT[];
+  FOREACH tbl IN ARRAY expected_tables
+  LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = tbl
+    ) THEN
+      missing_tables := array_append(missing_tables, tbl);
+    END IF;
+  END LOOP;
+  
+  IF array_length(missing_tables, 1) > 0 THEN
+    RAISE WARNING 'Missing tables: %', array_to_string(missing_tables, ', ');
+  ELSE
+    RAISE NOTICE '✓ All expected tables exist';
+  END IF;
+  
+  RAISE NOTICE '';
   RAISE NOTICE 'Next step: Run 02-rls-policies.sql';
   RAISE NOTICE '====================================================';
-END $$;
+END $;

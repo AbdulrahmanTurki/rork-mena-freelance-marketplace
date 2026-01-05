@@ -1,30 +1,33 @@
 -- =============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- Run this after 01-complete-schema.sql
+-- This script is IDEMPOTENT - safe to run multiple times
 -- =============================================================================
 
 -- =============================================================================
 -- ENABLE RLS ON ALL TABLES
 -- =============================================================================
 
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE seller_verifications ENABLE ROW LEVEL SECURITY;
-ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
-ALTER TABLE gigs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE order_revisions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
-ALTER TABLE seller_wallets ENABLE ROW LEVEL SECURITY;
-ALTER TABLE withdrawal_requests ENABLE ROW LEVEL SECURITY;
-ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE financial_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE escrow_settings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
-ALTER TABLE disputes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE admin_roles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_preferences ENABLE ROW LEVEL SECURITY;
-ALTER TABLE payment_methods ENABLE ROW LEVEL SECURITY;
+DO $
+DECLARE
+  tables_to_secure TEXT[] := ARRAY[
+    'profiles', 'seller_verifications', 'categories', 'gigs', 'orders',
+    'order_revisions', 'messages', 'seller_wallets', 'withdrawal_requests',
+    'transactions', 'financial_logs', 'escrow_settings', 'reviews',
+    'disputes', 'admin_roles', 'notifications', 'user_preferences', 'payment_methods'
+  ];
+  tbl TEXT;
+BEGIN
+  FOREACH tbl IN ARRAY tables_to_secure
+  LOOP
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = tbl) THEN
+      EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', tbl);
+      RAISE NOTICE '✓ RLS enabled on: %', tbl;
+    ELSE
+      RAISE WARNING '→ Table % does not exist, skipping RLS', tbl;
+    END IF;
+  END LOOP;
+END $;
 
 -- =============================================================================
 -- DROP EXISTING POLICIES (CLEAN SLATE)
@@ -328,12 +331,38 @@ CREATE POLICY "payment_methods_delete_own"
 -- VERIFICATION
 -- =============================================================================
 
-DO $$
+DO $
+DECLARE
+  policy_count INTEGER;
+  rls_enabled_count INTEGER;
+  expected_table_count INTEGER := 18;
 BEGIN
   RAISE NOTICE '====================================================';
   RAISE NOTICE '✓ RLS POLICIES SETUP COMPLETE';
   RAISE NOTICE '====================================================';
-  RAISE NOTICE 'All RLS policies created successfully';
+  
+  -- Count policies
+  SELECT COUNT(*) INTO policy_count
+  FROM pg_policies
+  WHERE schemaname = 'public';
+  
+  RAISE NOTICE 'Total policies created: %', policy_count;
+  
+  -- Count tables with RLS enabled
+  SELECT COUNT(*) INTO rls_enabled_count
+  FROM pg_tables
+  WHERE schemaname = 'public'
+  AND rowsecurity = true;
+  
+  RAISE NOTICE 'Tables with RLS enabled: % / %', rls_enabled_count, expected_table_count;
+  
+  IF rls_enabled_count < expected_table_count THEN
+    RAISE WARNING 'Not all tables have RLS enabled!';
+  ELSE
+    RAISE NOTICE '✓ All tables secured with RLS';
+  END IF;
+  
+  RAISE NOTICE '';
   RAISE NOTICE 'Next step: Run 03-functions-triggers.sql';
   RAISE NOTICE '====================================================';
-END $$;
+END $;

@@ -1,6 +1,7 @@
 -- =============================================================================
 -- FUNCTIONS AND TRIGGERS
 -- Run this after 02-rls-policies.sql
+-- This script is IDEMPOTENT - safe to run multiple times
 -- =============================================================================
 
 -- =============================================================================
@@ -132,12 +133,38 @@ CREATE TRIGGER update_payment_methods_updated_at
 -- VERIFICATION
 -- =============================================================================
 
-DO $$
+DO $
+DECLARE
+  function_count INTEGER;
+  trigger_count INTEGER;
 BEGIN
   RAISE NOTICE '====================================================';
   RAISE NOTICE '✓ FUNCTIONS AND TRIGGERS SETUP COMPLETE';
   RAISE NOTICE '====================================================';
-  RAISE NOTICE 'All functions and triggers created successfully';
+  
+  -- Count functions
+  SELECT COUNT(*) INTO function_count
+  FROM pg_proc p
+  JOIN pg_namespace n ON p.pronamespace = n.oid
+  WHERE n.nspname = 'public'
+  AND p.proname IN ('handle_new_user', 'create_seller_wallet', 'update_updated_at_column');
+  
+  RAISE NOTICE 'Functions created: %', function_count;
+  
+  -- Count triggers
+  SELECT COUNT(*) INTO trigger_count
+  FROM information_schema.triggers
+  WHERE trigger_schema = 'public';
+  
+  RAISE NOTICE 'Triggers created: %', trigger_count;
+  
+  IF function_count < 3 THEN
+    RAISE WARNING 'Not all functions were created!';
+  ELSE
+    RAISE NOTICE '✓ All functions created successfully';
+  END IF;
+  
+  RAISE NOTICE '';
   RAISE NOTICE 'Next step: Run 04-create-admin.sql';
   RAISE NOTICE '====================================================';
-END $$;
+END $;
