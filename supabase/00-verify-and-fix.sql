@@ -161,11 +161,11 @@ BEGIN
   RAISE NOTICE '6. CHECKING DEFAULT DATA';
   RAISE NOTICE '-----------------------------------';
   
-  IF EXISTS (SELECT 1 FROM escrow_settings LIMIT 1) THEN
-    RAISE NOTICE '✓ Escrow settings exist';
-  ELSE
-    RAISE WARNING '✗ Escrow settings MISSING';
-    IF EXISTS (SELECT 1 FROM information_schema.tables t WHERE t.table_schema = 'public' AND t.table_name = 'escrow_settings') THEN
+  IF EXISTS (SELECT 1 FROM information_schema.tables t WHERE t.table_schema = 'public' AND t.table_name = 'escrow_settings') THEN
+    IF EXISTS (SELECT 1 FROM escrow_settings LIMIT 1) THEN
+      RAISE NOTICE '✓ Escrow settings exist';
+    ELSE
+      RAISE WARNING '✗ Escrow settings MISSING';
       INSERT INTO escrow_settings (
         id,
         clearance_period_days,
@@ -185,6 +185,9 @@ BEGIN
       );
       RAISE NOTICE '→ Created default escrow settings';
     END IF;
+  ELSE
+    RAISE WARNING '✗ escrow_settings table does not exist';
+    RAISE NOTICE '→ Run 01-complete-schema.sql first';
   END IF;
   
   RAISE NOTICE '';
