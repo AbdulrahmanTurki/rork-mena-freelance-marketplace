@@ -49,8 +49,8 @@ BEGIN
   FOREACH table_name IN ARRAY expected_tables
   LOOP
     IF EXISTS (
-      SELECT 1 FROM information_schema.tables
-      WHERE table_schema = 'public' AND table_name = table_name
+      SELECT 1 FROM information_schema.tables t
+      WHERE t.table_schema = 'public' AND t.table_name = table_name
     ) THEN
       RAISE NOTICE '✓ Table exists: %', table_name;
     ELSE
@@ -77,10 +77,10 @@ BEGIN
     AND tablename = ANY(expected_tables)
   LOOP
     IF EXISTS (
-      SELECT 1 FROM pg_tables
-      WHERE schemaname = 'public'
-      AND tablename = table_name
-      AND rowsecurity = true
+      SELECT 1 FROM pg_tables pt
+      WHERE pt.schemaname = 'public'
+      AND pt.tablename = table_name
+      AND pt.rowsecurity = true
     ) THEN
       RAISE NOTICE '✓ RLS enabled: %', table_name;
     ELSE
@@ -165,7 +165,7 @@ BEGIN
     RAISE NOTICE '✓ Escrow settings exist';
   ELSE
     RAISE WARNING '✗ Escrow settings MISSING';
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'escrow_settings') THEN
+    IF EXISTS (SELECT 1 FROM information_schema.tables t WHERE t.table_schema = 'public' AND t.table_name = 'escrow_settings') THEN
       INSERT INTO escrow_settings (
         id,
         clearance_period_days,
