@@ -4,9 +4,9 @@
 -- This script is SAFE TO RUN - it only checks and fixes missing elements
 -- =============================================================================
 
-DO $$
+DO $
 DECLARE
-  table_name TEXT;
+  tbl_name TEXT;
   missing_tables TEXT[] := ARRAY[]::TEXT[];
   expected_tables TEXT[] := ARRAY[
     'profiles', 'seller_verifications', 'categories', 'gigs', 'orders',
@@ -46,16 +46,16 @@ BEGIN
   RAISE NOTICE '2. CHECKING TABLES';
   RAISE NOTICE '-----------------------------------';
   
-  FOREACH table_name IN ARRAY expected_tables
+  FOREACH tbl_name IN ARRAY expected_tables
   LOOP
     IF EXISTS (
       SELECT 1 FROM information_schema.tables t
-      WHERE t.table_schema = 'public' AND t.table_name = table_name
+      WHERE t.table_schema = 'public' AND t.table_name = tbl_name
     ) THEN
-      RAISE NOTICE '✓ Table exists: %', table_name;
+      RAISE NOTICE '✓ Table exists: %', tbl_name;
     ELSE
-      missing_tables := array_append(missing_tables, table_name);
-      RAISE WARNING '✗ Table MISSING: %', table_name;
+      missing_tables := array_append(missing_tables, tbl_name);
+      RAISE WARNING '✗ Table MISSING: %', tbl_name;
     END IF;
   END LOOP;
   
@@ -71,7 +71,7 @@ BEGIN
   RAISE NOTICE '3. CHECKING ROW LEVEL SECURITY';
   RAISE NOTICE '-----------------------------------';
   
-  FOR table_name IN 
+  FOR tbl_name IN 
     SELECT tablename FROM pg_tables 
     WHERE schemaname = 'public' 
     AND tablename = ANY(expected_tables)
@@ -79,14 +79,14 @@ BEGIN
     IF EXISTS (
       SELECT 1 FROM pg_tables pt
       WHERE pt.schemaname = 'public'
-      AND pt.tablename = table_name
+      AND pt.tablename = tbl_name
       AND pt.rowsecurity = true
     ) THEN
-      RAISE NOTICE '✓ RLS enabled: %', table_name;
+      RAISE NOTICE '✓ RLS enabled: %', tbl_name;
     ELSE
-      RAISE WARNING '✗ RLS DISABLED: %', table_name;
-      EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', table_name);
-      RAISE NOTICE '→ Enabled RLS on: %', table_name;
+      RAISE WARNING '✗ RLS DISABLED: %', tbl_name;
+      EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', tbl_name);
+      RAISE NOTICE '→ Enabled RLS on: %', tbl_name;
     END IF;
   END LOOP;
   
