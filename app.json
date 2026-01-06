@@ -17,9 +17,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "app.rork.mena-freelance-marketplace",
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "Allow $(PRODUCT_NAME) to access your photos",
-        "NSCameraUsageDescription": "Allow $(PRODUCT_NAME) to access your camera",
-        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone"
+        "NSPhotoLibraryUsageDescription": "Allow Rork to access your photos to upload service images and verification documents.",
+        "NSCameraUsageDescription": "Allow Rork to access your camera to take photos for your profile or services.",
+        "NSMicrophoneUsageDescription": "Allow Rork to access your microphone for video features."
       }
     },
     "android": {
@@ -31,7 +31,9 @@
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_VIDEO"
       ]
     },
     "web": {
@@ -49,7 +51,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "The app accesses your photos to let you share them with your friends."
+          "photosPermission": "Allow Rork to access your photos to upload service images."
         }
       ]
     ],
