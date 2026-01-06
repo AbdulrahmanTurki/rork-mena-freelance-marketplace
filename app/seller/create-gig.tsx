@@ -20,9 +20,12 @@ import {
   View,
   Alert,
   ActivityIndicator,
+  Image, // Added Image component
 } from "react-native";
 import { useCreateGig } from "@/hooks/useGigs";
 import { useCategories } from "@/hooks/useCategories";
+import * as ImagePicker from "expo-image-picker"; // Added Image Picker
+import { supabase } from "@/lib/supabase"; // Added Supabase for storage
 
 type PricingPackage = {
   name: "basic" | "standard" | "premium";
@@ -46,6 +49,10 @@ export default function CreateGigScreen() {
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   
+  // --- NEW: Image State ---
+  const [images, setImages] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+
   const [packages, setPackages] = useState<PricingPackage[]>([
     {
       name: "basic",
@@ -69,6 +76,39 @@ export default function CreateGigScreen() {
       features: [""],
     },
   ]);
+
+  // --- NEW: Image Picker Functions ---
+  const pickImage = async () => {
+    // 1. Request Permission
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Denied', 'We need access to your photos to upload service images.');
+      return;
+    }
+
+    // 2. Open Gallery
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false, 
+        allowsMultipleSelection: true,
+        selectionLimit: 5 - images.length, // Respect max 5 limit
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        const newUris = result.assets.map(asset => asset.uri);
+        setImages(prev => [...prev, ...newUris].slice(0, 5));
+      }
+    } catch (error) {
+      console.error('Error picking images:', error);
+      Alert.alert('Error', 'Failed to open image picker');
+    }
+  };
+
+  const removeImage = (indexToRemove: number) => {
+    setImages(prev => prev.filter((_, index) => index !== indexToRemove));
+  };
 
   const handleAddTag = () => {
     if (tagInput.trim() && tags.length < 5) {
@@ -165,6 +205,42 @@ export default function CreateGigScreen() {
     }
 
     try {
+      setIsUploading(true); // Start loading state
+      console.log("[CreateGig] Uploading images...");
+
+      // --- NEW: Upload Images Logic ---
+      const uploadedImageUrls: string[] = [];
+      
+      for (const uri of images) {
+        // Create unique filename
+        const filename = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
+        const formData = new FormData();
+        
+        // @ts-ignore
+        formData.append('file', {
+          uri,
+          name: filename,
+          type: 'image/jpeg',
+        });
+
+        // Upload to Supabase bucket 'gig-images'
+        const { error } = await supabase.storage
+          .from('gig-images')
+          .upload(filename, formData, {
+            contentType: 'image/jpeg',
+          });
+
+        if (error) throw error;
+
+        // Get Public URL
+        const { data: publicUrlData } = supabase.storage
+          .from('gig-images')
+          .getPublicUrl(filename);
+          
+        uploadedImageUrls.push(publicUrlData.publicUrl);
+      }
+      // --------------------------------
+
       console.log("[CreateGig] Creating gig...");
       
       const packagesData = packages.map(pkg => ({
@@ -186,6 +262,7 @@ export default function CreateGigScreen() {
         revisions_included: 1,
         is_active: true,
         packages: packagesData.length > 0 ? packagesData : null,
+        images: uploadedImageUrls, // Add images to payload
       };
       
       console.log("[CreateGig] Gig data:", gigData);
@@ -208,6 +285,8 @@ export default function CreateGigScreen() {
         "Error",
         error?.message || "Failed to create service. Please try again."
       );
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -348,11 +427,37 @@ export default function CreateGigScreen() {
 
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { color: theme.text }]}>Service Images</Text>
-            <TouchableOpacity style={[styles.uploadBox, { backgroundColor: theme.card, borderColor: theme.border }]}>
+            
+            {/* Upload Button */}
+            <TouchableOpacity 
+              onPress={pickImage}
+              style={[styles.uploadBox, { backgroundColor: theme.card, borderColor: theme.border }]}
+            >
               <FileImage size={32} color={BrandColors.gray400} />
-              <Text style={[styles.uploadText, { color: theme.text }]}>Upload Images</Text>
-              <Text style={styles.uploadHint}>Up to 5 images</Text>
+              <Text style={[styles.uploadText, { color: theme.text }]}>
+                {images.length > 0 ? "Add More Images" : "Upload Images"}
+              </Text>
+              <Text style={styles.uploadHint}>
+                {images.length}/5 images selected
+              </Text>
             </TouchableOpacity>
+
+            {/* Image Previews */}
+            {images.length > 0 && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imagePreviewList}>
+                {images.map((uri, index) => (
+                  <View key={index} style={styles.previewContainer}>
+                    <Image source={{ uri }} style={styles.previewImage} />
+                    <TouchableOpacity 
+                      onPress={() => removeImage(index)}
+                      style={styles.removeImageButton}
+                    >
+                      <X size={12} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
           </View>
         </View>
 
@@ -476,14 +581,19 @@ export default function CreateGigScreen() {
         </View>
 
         <TouchableOpacity 
-          style={[styles.publishButton, createGigMutation.isPending && styles.publishButtonDisabled]} 
+          style={[
+            styles.publishButton, 
+            (createGigMutation.isPending || isUploading) && styles.publishButtonDisabled
+          ]} 
           onPress={handlePublish}
-          disabled={createGigMutation.isPending}
+          disabled={createGigMutation.isPending || isUploading}
         >
-          {createGigMutation.isPending ? (
+          {createGigMutation.isPending || isUploading ? (
             <ActivityIndicator size="small" color={BrandColors.white} />
           ) : (
-            <Text style={styles.publishButtonText}>Publish Service</Text>
+            <Text style={styles.publishButtonText}>
+              {isUploading ? "Uploading Images..." : "Publish Service"}
+            </Text>
           )}
         </TouchableOpacity>
 
@@ -630,6 +740,34 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: BrandColors.gray500,
   },
+  // --- New Image Preview Styles ---
+  imagePreviewList: {
+    flexDirection: 'row',
+    marginTop: 12,
+  },
+  previewContainer: {
+    marginRight: 12,
+    position: 'relative',
+  },
+  previewImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    backgroundColor: BrandColors.error,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#fff',
+  },
+  // --------------------------------
   packageCard: {
     backgroundColor: BrandColors.white,
     borderRadius: 16,
