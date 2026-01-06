@@ -35,7 +35,9 @@ type PricingPackage = {
 };
 
 export default function EditGigScreen() {
-  const { id } = useLocalSearchParams();
+  const params = useLocalSearchParams();
+  const id = Array.isArray(params.id) ? params.id[0] : params.id; // SAFE ID HANDLING
+
   const { theme } = useTheme();
   const router = useRouter();
   const { user } = useAuth();
@@ -59,7 +61,11 @@ export default function EditGigScreen() {
   ]);
 
   useEffect(() => {
-    if (!id) return;
+    // FIX: If no ID is found, stop loading immediately
+    if (!id) {
+      setLoading(false);
+      return;
+    }
     fetchGigDetails();
   }, [id]);
 
@@ -215,6 +221,18 @@ export default function EditGigScreen() {
     return <View style={styles.center}><ActivityIndicator size="large" color={BrandColors.primary} /></View>;
   }
 
+  // Fallback if ID is missing (Prevents white screen)
+  if (!id) {
+    return (
+        <View style={styles.center}>
+            <Text style={{color: theme.text}}>No Service ID provided.</Text>
+            <TouchableOpacity onPress={() => router.back()} style={{marginTop: 20}}>
+                <Text style={{color: BrandColors.primary}}>Go Back</Text>
+            </TouchableOpacity>
+        </View>
+    );
+  }
+
   const getPackageColor = (name: string) => {
     if (name === 'basic') return '#4CAF50';
     if (name === 'standard') return BrandColors.primary;
@@ -250,7 +268,7 @@ export default function EditGigScreen() {
                         <Text style={styles.uploadHint}>{images.length}/5 images selected</Text>
                     </TouchableOpacity>
 
-                    {/* 3. Bottom Part: Image List (INSIDE the box now) */}
+                    {/* 3. Bottom Part: Image List (INSIDE the box) */}
                     {images.length > 0 && (
                         <View style={styles.imageListContainer}>
                             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -334,7 +352,7 @@ const styles = StyleSheet.create({
     borderRadius: 16, 
     padding: 20, 
     alignItems: 'center',
-    gap: 10 // Space between placeholder and images
+    gap: 10
   },
   uploadPlaceholder: {
     alignItems: 'center',
@@ -350,7 +368,7 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: '#eee', // Light separator line inside the box
+    borderTopColor: '#eee', 
   },
   previewContainer: { marginRight: 10, position: 'relative' },
   
