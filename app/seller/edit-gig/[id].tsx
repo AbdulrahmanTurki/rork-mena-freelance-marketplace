@@ -9,7 +9,6 @@ import {
   FileImage,
   Clock,
   Package as PackageIcon,
-  ArrowLeft,
 } from "lucide-react-native";
 import React, { useState, useEffect } from "react";
 import {
@@ -36,8 +35,7 @@ type PricingPackage = {
 };
 
 export default function EditGigScreen() {
-  const { id } = useLocalSearchParams(); // Get the Gig ID from URL
-  const { t } = useLanguage();
+  const { id } = useLocalSearchParams();
   const { theme } = useTheme();
   const router = useRouter();
   const { user } = useAuth();
@@ -52,8 +50,6 @@ export default function EditGigScreen() {
   const [selectedCategory, setSelectedCategory] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
-  
-  // Image State
   const [images, setImages] = useState<string[]>([]);
 
   const [packages, setPackages] = useState<PricingPackage[]>([
@@ -84,9 +80,7 @@ export default function EditGigScreen() {
       setTags(data.tags || []);
       setImages(data.images || []);
 
-      // Parse Packages if they exist
       if (data.packages && Array.isArray(data.packages)) {
-        // Map database packages back to our UI format
         const updatedPackages = packages.map(pkg => {
             const found = data.packages.find((p: any) => p.name === pkg.name);
             if (found) {
@@ -134,7 +128,7 @@ export default function EditGigScreen() {
     setImages(prev => prev.filter((_, index) => index !== indexToRemove));
   };
 
-  // 3. TAGS & PACKAGES HANDLERS
+  // 3. HANDLERS
   const handleAddTag = () => {
     if (tagInput.trim() && tags.length < 5) {
       setTags([...tags, tagInput.trim()]);
@@ -156,22 +150,19 @@ export default function EditGigScreen() {
     setPackages(prev => prev.map(p => p.name === name ? { ...p, features: p.features.filter((_, i) => i !== idx) } : p));
   };
 
-  // 4. UPDATE GIG LOGIC
+  // 4. UPDATE GIG
   const handleUpdate = async () => {
     if (!user) return;
     setSaving(true);
 
     try {
-      // A. Process Images (The tricky part)
+      // Process Images
       const finalImageUrls: string[] = [];
 
       for (const img of images) {
-        // CASE 1: It's an existing URL (starts with http) -> Keep it
         if (img.startsWith('http')) {
           finalImageUrls.push(img);
-        } 
-        // CASE 2: It's a new local file (starts with file://) -> Upload it
-        else {
+        } else {
           const filename = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
           const formData = new FormData();
           // @ts-ignore
@@ -188,7 +179,6 @@ export default function EditGigScreen() {
         }
       }
 
-      // B. Prepare Data
       const packagesData = packages.map(pkg => ({
         name: pkg.name,
         price: parseFloat(pkg.price || "0"),
@@ -199,7 +189,6 @@ export default function EditGigScreen() {
 
       const basicPkg = packagesData.find(p => p.name === "basic");
       
-      // C. Update Database
       const { error } = await supabase
         .from('gigs')
         .update({
@@ -209,15 +198,14 @@ export default function EditGigScreen() {
             price: basicPkg ? basicPkg.price : 0,
             delivery_time: basicPkg ? basicPkg.deliveryDays : 0,
             tags,
-            images: finalImageUrls, // Save the mixed list of old and new URLs
+            images: finalImageUrls, 
             packages: packagesData
         })
         .eq('id', id);
 
       if (error) throw error;
 
-      // D. Cleanup
-      queryClient.invalidateQueries({ queryKey: ['seller-gigs'] }); // Refresh list
+      queryClient.invalidateQueries({ queryKey: ['seller-gigs'] }); 
       Alert.alert("Success", "Service updated successfully!", [{ text: "OK", onPress: () => router.back() }]);
 
     } catch (error: any) {
@@ -232,7 +220,6 @@ export default function EditGigScreen() {
     return <View style={styles.center}><ActivityIndicator size="large" color={BrandColors.primary} /></View>;
   }
 
-  // Helper styles
   const getPackageColor = (name: string) => {
     if (name === 'basic') return '#4CAF50';
     if (name === 'standard') return BrandColors.primary;
@@ -253,24 +240,36 @@ export default function EditGigScreen() {
                 <TextInput style={[styles.input, styles.textArea, {color: theme.text, backgroundColor: theme.card}]} value={description} onChangeText={setDescription} multiline />
             </View>
 
-            {/* Images */}
+            {/* IMAGES SECTION - FIXED UI */}
             <View style={styles.section}>
                 <Text style={[styles.label, {color: theme.text}]}>Images</Text>
-                <TouchableOpacity onPress={pickImage} style={[styles.uploadBox, {borderColor: theme.border, backgroundColor: theme.card}]}>
-                    <FileImage size={24} color={BrandColors.gray400} />
-                    <Text style={{color: theme.text, marginTop: 8}}>Add / Edit Images ({images.length}/5)</Text>
-                </TouchableOpacity>
+                
+                {/* Dashed Container that holds EVERYTHING */}
+                <View style={[styles.uploadBox, {borderColor: theme.border, backgroundColor: theme.card}]}>
+                    
+                    {/* 1. The Clickable "Add" Area */}
+                    <TouchableOpacity onPress={pickImage} style={styles.uploadPlaceholder}>
+                        <FileImage size={32} color={BrandColors.gray400} />
+                        <Text style={[styles.uploadText, {color: theme.text}]}>
+                           {images.length > 0 ? "Add More Images" : "Upload Images"}
+                        </Text>
+                        <Text style={styles.uploadHint}>{images.length}/5 images selected</Text>
+                    </TouchableOpacity>
 
-                <ScrollView horizontal style={{marginTop: 12}}>
-                    {images.map((uri, idx) => (
-                        <View key={idx} style={styles.previewContainer}>
-                            <Image source={{ uri }} style={styles.previewImage} />
-                            <TouchableOpacity onPress={() => removeImage(idx)} style={styles.removeBtn}>
-                                <X size={12} color="#fff" />
-                            </TouchableOpacity>
-                        </View>
-                    ))}
-                </ScrollView>
+                    {/* 2. The Images List (Inside the box) */}
+                    {images.length > 0 && (
+                        <ScrollView horizontal style={styles.imageListInside} showsHorizontalScrollIndicator={false}>
+                            {images.map((uri, idx) => (
+                                <View key={idx} style={styles.previewContainer}>
+                                    <Image source={{ uri }} style={styles.previewImage} />
+                                    <TouchableOpacity onPress={() => removeImage(idx)} style={styles.removeBtn}>
+                                        <X size={12} color="#fff" />
+                                    </TouchableOpacity>
+                                </View>
+                            ))}
+                        </ScrollView>
+                    )}
+                </View>
             </View>
 
             {/* Tags */}
@@ -292,7 +291,6 @@ export default function EditGigScreen() {
             {packages.map((pkg) => (
                 <View key={pkg.name} style={[styles.pkgCard, {backgroundColor: theme.card, borderLeftColor: getPackageColor(pkg.name)}]}>
                     <Text style={[styles.pkgTitle, {color: getPackageColor(pkg.name)}]}>{pkg.name.toUpperCase()}</Text>
-                    
                     <View style={styles.row}>
                         <View style={{flex: 1}}>
                             <Text style={styles.smallLabel}>Price</Text>
@@ -303,10 +301,8 @@ export default function EditGigScreen() {
                             <TextInput style={[styles.input, {backgroundColor: theme.background, color: theme.text}]} value={pkg.deliveryDays} onChangeText={v => updatePackage(pkg.name, 'deliveryDays', v)} keyboardType="numeric" />
                         </View>
                     </View>
-
                     <Text style={styles.smallLabel}>Description</Text>
                     <TextInput style={[styles.input, {backgroundColor: theme.background, color: theme.text, height: 60}]} multiline value={pkg.description} onChangeText={v => updatePackage(pkg.name, 'description', v)} />
-
                     <Text style={styles.smallLabel}>Features</Text>
                     {pkg.features.map((f, i) => (
                         <View key={i} style={{flexDirection: 'row', gap: 8, marginBottom: 8}}>
@@ -335,10 +331,35 @@ const styles = StyleSheet.create({
   label: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
   input: { borderRadius: 8, padding: 12, fontSize: 16, marginBottom: 12 },
   textArea: { minHeight: 100, textAlignVertical: 'top' },
-  uploadBox: { height: 80, borderWidth: 1, borderStyle: 'dashed', borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  
+  // -- NEW STYLES FOR IMAGE CONTAINER --
+  uploadBox: { 
+    borderWidth: 2, 
+    borderStyle: 'dashed', 
+    borderRadius: 16, 
+    padding: 24, 
+    alignItems: 'center', 
+    gap: 8,
+    minHeight: 150, // Enough height for placeholder + images
+    justifyContent: 'center'
+  },
+  uploadPlaceholder: {
+    alignItems: 'center',
+    width: '100%',
+    paddingVertical: 10
+  },
+  uploadText: { fontSize: 15, fontWeight: "600", marginTop: 8 },
+  uploadHint: { fontSize: 13, color: BrandColors.gray500 },
+  imageListInside: {
+    marginTop: 12,
+    width: '100%',
+    flexGrow: 0
+  },
   previewContainer: { marginRight: 10, position: 'relative' },
-  previewImage: { width: 80, height: 80, borderRadius: 8 },
-  removeBtn: { position: 'absolute', top: -5, right: -5, backgroundColor: 'red', borderRadius: 10, width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
+  previewImage: { width: 70, height: 70, borderRadius: 8 },
+  removeBtn: { position: 'absolute', top: -6, right: -6, backgroundColor: BrandColors.error, borderRadius: 10, width: 20, height: 20, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#fff' },
+  // -----------------------------------
+
   addBtn: { backgroundColor: BrandColors.primary, width: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tag: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#E0F2F1', padding: 8, borderRadius: 16 },
