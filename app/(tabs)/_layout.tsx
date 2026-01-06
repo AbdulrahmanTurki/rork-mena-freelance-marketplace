@@ -2,7 +2,7 @@ import { BrandColors } from "@/constants/colors";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Tabs } from "expo-router";
-import { Compass, Home, MessageCircle, ShoppingBag, User } from "lucide-react-native";
+import { Bell, Compass, Home, MessageCircle, ShoppingBag, User } from "lucide-react-native";
 import React from "react";
 
 export default function TabLayout() {
@@ -53,6 +53,13 @@ export default function TabLayout() {
         options={{
           title: t("orders"),
           tabBarIcon: ({ color }) => <ShoppingBag size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="notifications"
+        options={{
+          title: t("notifications"),
+          tabBarIcon: ({ color }) => <Bell size={24} color={color} />,
         }}
       />
       <Tabs.Screen

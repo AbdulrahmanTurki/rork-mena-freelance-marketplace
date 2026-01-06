@@ -7,7 +7,8 @@ import {
   Package, 
   ShoppingBag, 
   MessageCircle, 
-  BarChart3 
+  BarChart3,
+  Bell
 } from "lucide-react-native";
 import React from "react";
 
@@ -59,6 +60,13 @@ export default function SellerTabLayout() {
         options={{
           title: t("inbox"),
           tabBarIcon: ({ color }) => <MessageCircle size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="notifications"
+        options={{
+          title: t("notifications"),
+          tabBarIcon: ({ color }) => <Bell size={24} color={color} />,
         }}
       />
       <Tabs.Screen

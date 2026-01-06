@@ -9,6 +9,7 @@ import {
   Users,
   Briefcase,
   AlertCircle,
+  Bell,
   MoreHorizontal,
 } from 'lucide-react-native';
 
@@ -51,6 +52,7 @@ export default function AdminTabsLayout() {
     users: isRTL ? 'المستخدمين' : 'Users',
     gigs: isRTL ? 'الخدمات' : 'Gigs',
     disputes: isRTL ? 'النزاعات' : 'Disputes',
+    notifications: isRTL ? 'الإشعارات' : 'Notifications',
     more: isRTL ? 'المزيد' : 'More',
   };
 
@@ -97,6 +99,13 @@ export default function AdminTabsLayout() {
         options={{
           title: t.disputes,
           tabBarIcon: ({ color, size }) => <AlertCircle size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="notifications"
+        options={{
+          title: t.notifications,
+          tabBarIcon: ({ color, size }) => <Bell size={24} color={color} />,
         }}
       />
       <Tabs.Screen

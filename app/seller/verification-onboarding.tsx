@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   ArrowRight,
   CheckCircle,
-  FileText,
   IdCard,
   Shield,
   Upload,
@@ -269,7 +268,7 @@ export default function VerificationOnboardingScreen() {
       if (error) {
         console.error('[Upload Image] Supabase error:', error);
         console.error('[Upload Image] Error response:', JSON.stringify(error, null, 2));
-        throw new Error(`Upload failed: ${error.statusCode || error.message}`);
+        throw new Error(`Upload failed: ${error.message}`);
       }
       
       console.log('[Upload Image] Upload successful, path:', data.path);
@@ -956,11 +955,11 @@ export default function VerificationOnboardingScreen() {
             onPress={() => handlePickImage("permit")}
           >
             {verificationData.permitDocument ? (
-              <View style={styles.documentUploaded}>
-                <FileText size={48} color={BrandColors.secondary} />
-                <Text style={[styles.documentName, { color: theme.text }]}>
-                  Permit Document Uploaded
-                </Text>
+              <>
+                <Image
+                  source={{ uri: verificationData.permitDocument }}
+                  style={styles.uploadedImage}
+                />
                 <Text
                   style={[
                     styles.documentChange,
@@ -969,7 +968,7 @@ export default function VerificationOnboardingScreen() {
                 >
                   Tap to change
                 </Text>
-              </View>
+              </>
             ) : (
               <>
                 <Upload size={32} color={BrandColors.primary} />

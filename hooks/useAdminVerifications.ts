@@ -120,28 +120,51 @@ export function useRejectVerification() {
       reviewedBy: string;
     }) => {
       console.log('[useRejectVerification] Rejecting verification:', verificationId);
-      const { data, error } = await supabase
+      
+      const { data: currentVerification } = await supabase
+        .from('seller_verifications')
+        .select('rejection_count')
+        .eq('id', verificationId)
+        .single();
+
+      const { data: verification, error: verificationError } = await supabase
         .from('seller_verifications')
         .update({
           status: 'rejected',
           rejection_reason: reason,
           reviewed_by: reviewedBy,
           reviewed_at: new Date().toISOString(),
+          rejection_count: (currentVerification?.rejection_count || 0) + 1,
         })
         .eq('id', verificationId)
         .select()
         .single();
 
-      if (error) {
-        console.error('[useRejectVerification] Error:', JSON.stringify(error, null, 2));
-        console.error('[useRejectVerification] Error message:', error.message);
-        throw new Error(error.message || 'Failed to reject verification');
+      if (verificationError) {
+        console.error('[useRejectVerification] Error:', JSON.stringify(verificationError, null, 2));
+        console.error('[useRejectVerification] Error message:', verificationError.message);
+        throw new Error(verificationError.message || 'Failed to reject verification');
       }
 
-      return data;
+      console.log('[useRejectVerification] Verification rejected, ensuring user profile is set to buyer');
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          user_type: 'buyer',
+        })
+        .eq('id', verification.user_id);
+
+      if (profileError) {
+        console.error('[useRejectVerification] Profile update error:', JSON.stringify(profileError, null, 2));
+        throw new Error(profileError.message || 'Failed to update user profile');
+      }
+
+      console.log('[useRejectVerification] User profile set back to buyer successfully');
+      return verification;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'verifications'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
     },
   });
 }
