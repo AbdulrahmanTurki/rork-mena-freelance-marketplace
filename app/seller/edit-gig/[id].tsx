@@ -35,9 +35,7 @@ type PricingPackage = {
 };
 
 export default function EditGigScreen() {
-  const params = useLocalSearchParams();
-  const id = Array.isArray(params.id) ? params.id[0] : params.id; // SAFE ID HANDLING
-
+  const { id } = useLocalSearchParams();
   const { theme } = useTheme();
   const router = useRouter();
   const { user } = useAuth();
@@ -61,11 +59,7 @@ export default function EditGigScreen() {
   ]);
 
   useEffect(() => {
-    // FIX: If no ID is found, stop loading immediately
-    if (!id) {
-      setLoading(false);
-      return;
-    }
+    if (!id) return;
     fetchGigDetails();
   }, [id]);
 
@@ -221,18 +215,6 @@ export default function EditGigScreen() {
     return <View style={styles.center}><ActivityIndicator size="large" color={BrandColors.primary} /></View>;
   }
 
-  // Fallback if ID is missing (Prevents white screen)
-  if (!id) {
-    return (
-        <View style={styles.center}>
-            <Text style={{color: theme.text}}>No Service ID provided.</Text>
-            <TouchableOpacity onPress={() => router.back()} style={{marginTop: 20}}>
-                <Text style={{color: BrandColors.primary}}>Go Back</Text>
-            </TouchableOpacity>
-        </View>
-    );
-  }
-
   const getPackageColor = (name: string) => {
     if (name === 'basic') return '#4CAF50';
     if (name === 'standard') return BrandColors.primary;
@@ -252,15 +234,15 @@ export default function EditGigScreen() {
                 <TextInput style={[styles.input, styles.textArea, {color: theme.text, backgroundColor: theme.card}]} value={description} onChangeText={setDescription} multiline />
             </View>
 
-            {/* --- FIXED IMAGE CONTAINER --- */}
+            {/* --- FIXED IMAGE SECTION --- */}
             <View style={styles.section}>
                 <Text style={[styles.label, {color: theme.text}]}>Images</Text>
                 
-                {/* 1. Main Dashed Box Container */}
-                <View style={[styles.uploadBox, {borderColor: theme.border, backgroundColor: theme.card}]}>
+                {/* 1. The Container is a VIEW, not a TouchableOpacity */}
+                <View style={[styles.uploadContainer, {borderColor: theme.border, backgroundColor: theme.card}]}>
                     
-                    {/* 2. Top Part: "Add Images" Button */}
-                    <TouchableOpacity onPress={pickImage} style={styles.uploadPlaceholder}>
+                    {/* 2. The "Add" Button Area */}
+                    <TouchableOpacity onPress={pickImage} style={styles.uploadButtonArea}>
                         <FileImage size={32} color={BrandColors.gray400} />
                         <Text style={[styles.uploadText, {color: theme.text}]}>
                            {images.length > 0 ? "Add More Images" : "Upload Images"}
@@ -268,9 +250,9 @@ export default function EditGigScreen() {
                         <Text style={styles.uploadHint}>{images.length}/5 images selected</Text>
                     </TouchableOpacity>
 
-                    {/* 3. Bottom Part: Image List (INSIDE the box) */}
+                    {/* 3. The Images are INSIDE this same View */}
                     {images.length > 0 && (
-                        <View style={styles.imageListContainer}>
+                        <View style={styles.previewWrapper}>
                             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                                 {images.map((uri, idx) => (
                                     <View key={idx} style={styles.previewContainer}>
@@ -285,7 +267,7 @@ export default function EditGigScreen() {
                     )}
                 </View>
             </View>
-            {/* ----------------------------- */}
+            {/* --------------------------- */}
 
             <View style={styles.section}>
                 <Text style={[styles.label, {color: theme.text}]}>Tags</Text>
@@ -345,38 +327,33 @@ const styles = StyleSheet.create({
   input: { borderRadius: 8, padding: 12, fontSize: 16, marginBottom: 12 },
   textArea: { minHeight: 100, textAlignVertical: 'top' },
   
-  // --- UPDATED UPLOAD CONTAINER STYLES ---
-  uploadBox: { 
+  // -- UPDATED CONTAINER STYLES --
+  uploadContainer: { 
     borderWidth: 2, 
     borderStyle: 'dashed', 
     borderRadius: 16, 
     padding: 20, 
-    alignItems: 'center',
-    gap: 10
+    minHeight: 140,
   },
-  uploadPlaceholder: {
+  uploadButtonArea: {
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 10,
     width: '100%',
-    paddingVertical: 10
   },
   uploadText: { fontSize: 15, fontWeight: "600", marginTop: 8 },
   uploadHint: { fontSize: 13, color: BrandColors.gray500 },
   
-  imageListContainer: {
-    marginTop: 10,
-    width: '100%',
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#eee', 
+  previewWrapper: {
+    marginTop: 15, // Space between button and images
+    borderTopWidth: 1, // Optional divider
+    borderTopColor: '#eee',
+    paddingTop: 15,
   },
   previewContainer: { marginRight: 10, position: 'relative' },
-  
-  // FIXED SIZE: 80x80 matches Create Gig
-  previewImage: { width: 80, height: 80, borderRadius: 8 },
-  
+  previewImage: { width: 70, height: 70, borderRadius: 8 },
   removeBtn: { position: 'absolute', top: -6, right: -6, backgroundColor: BrandColors.error, borderRadius: 10, width: 20, height: 20, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#fff' },
-  // ----------------------------------------
+  // ------------------------------
 
   addBtn: { backgroundColor: BrandColors.primary, width: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
