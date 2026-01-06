@@ -58,6 +58,7 @@ export default function EditGigScreen() {
     { name: "premium", price: "", deliveryDays: "", description: "", features: [""] },
   ]);
 
+  // 1. FETCH GIG DATA
   useEffect(() => {
     if (!id) return;
     fetchGigDetails();
@@ -103,6 +104,7 @@ export default function EditGigScreen() {
     }
   };
 
+  // 2. IMAGE PICKER
   const pickImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -126,6 +128,7 @@ export default function EditGigScreen() {
     setImages(prev => prev.filter((_, index) => index !== indexToRemove));
   };
 
+  // 3. HANDLERS
   const handleAddTag = () => {
     if (tagInput.trim() && tags.length < 5) {
       setTags([...tags, tagInput.trim()]);
@@ -147,11 +150,13 @@ export default function EditGigScreen() {
     setPackages(prev => prev.map(p => p.name === name ? { ...p, features: p.features.filter((_, i) => i !== idx) } : p));
   };
 
+  // 4. UPDATE GIG
   const handleUpdate = async () => {
     if (!user) return;
     setSaving(true);
 
     try {
+      // Process Images
       const finalImageUrls: string[] = [];
 
       for (const img of images) {
@@ -226,6 +231,7 @@ export default function EditGigScreen() {
         <Stack.Screen options={{ title: "Edit Service", headerBackTitle: "Back" }} />
         
         <ScrollView contentContainerStyle={styles.content}>
+            {/* Title & Desc */}
             <View style={styles.section}>
                 <Text style={[styles.label, {color: theme.text}]}>Title</Text>
                 <TextInput style={[styles.input, {color: theme.text, backgroundColor: theme.card}]} value={title} onChangeText={setTitle} />
@@ -234,15 +240,15 @@ export default function EditGigScreen() {
                 <TextInput style={[styles.input, styles.textArea, {color: theme.text, backgroundColor: theme.card}]} value={description} onChangeText={setDescription} multiline />
             </View>
 
-            {/* --- FIXED IMAGE SECTION --- */}
+            {/* IMAGES SECTION - FIXED UI */}
             <View style={styles.section}>
                 <Text style={[styles.label, {color: theme.text}]}>Images</Text>
                 
-                {/* 1. The Container is a VIEW, not a TouchableOpacity */}
-                <View style={[styles.uploadContainer, {borderColor: theme.border, backgroundColor: theme.card}]}>
+                {/* Dashed Container that holds EVERYTHING */}
+                <View style={[styles.uploadBox, {borderColor: theme.border, backgroundColor: theme.card}]}>
                     
-                    {/* 2. The "Add" Button Area */}
-                    <TouchableOpacity onPress={pickImage} style={styles.uploadButtonArea}>
+                    {/* 1. The Clickable "Add" Area */}
+                    <TouchableOpacity onPress={pickImage} style={styles.uploadPlaceholder}>
                         <FileImage size={32} color={BrandColors.gray400} />
                         <Text style={[styles.uploadText, {color: theme.text}]}>
                            {images.length > 0 ? "Add More Images" : "Upload Images"}
@@ -250,25 +256,23 @@ export default function EditGigScreen() {
                         <Text style={styles.uploadHint}>{images.length}/5 images selected</Text>
                     </TouchableOpacity>
 
-                    {/* 3. The Images are INSIDE this same View */}
+                    {/* 2. The Images List (Inside the box) */}
                     {images.length > 0 && (
-                        <View style={styles.previewWrapper}>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                                {images.map((uri, idx) => (
-                                    <View key={idx} style={styles.previewContainer}>
-                                        <Image source={{ uri }} style={styles.previewImage} />
-                                        <TouchableOpacity onPress={() => removeImage(idx)} style={styles.removeBtn}>
-                                            <X size={12} color="#fff" />
-                                        </TouchableOpacity>
-                                    </View>
-                                ))}
-                            </ScrollView>
-                        </View>
+                        <ScrollView horizontal style={styles.imageListInside} showsHorizontalScrollIndicator={false}>
+                            {images.map((uri, idx) => (
+                                <View key={idx} style={styles.previewContainer}>
+                                    <Image source={{ uri }} style={styles.previewImage} />
+                                    <TouchableOpacity onPress={() => removeImage(idx)} style={styles.removeBtn}>
+                                        <X size={12} color="#fff" />
+                                    </TouchableOpacity>
+                                </View>
+                            ))}
+                        </ScrollView>
                     )}
                 </View>
             </View>
-            {/* --------------------------- */}
 
+            {/* Tags */}
             <View style={styles.section}>
                 <Text style={[styles.label, {color: theme.text}]}>Tags</Text>
                 <View style={{flexDirection: 'row', gap: 8}}>
@@ -282,6 +286,7 @@ export default function EditGigScreen() {
                 </View>
             </View>
 
+            {/* Packages */}
             <Text style={[styles.sectionTitle, {color: theme.text}]}>Packages</Text>
             {packages.map((pkg) => (
                 <View key={pkg.name} style={[styles.pkgCard, {backgroundColor: theme.card, borderLeftColor: getPackageColor(pkg.name)}]}>
@@ -327,33 +332,33 @@ const styles = StyleSheet.create({
   input: { borderRadius: 8, padding: 12, fontSize: 16, marginBottom: 12 },
   textArea: { minHeight: 100, textAlignVertical: 'top' },
   
-  // -- UPDATED CONTAINER STYLES --
-  uploadContainer: { 
+  // -- NEW STYLES FOR IMAGE CONTAINER --
+  uploadBox: { 
     borderWidth: 2, 
     borderStyle: 'dashed', 
     borderRadius: 16, 
-    padding: 20, 
-    minHeight: 140,
+    padding: 24, 
+    alignItems: 'center', 
+    gap: 8,
+    minHeight: 150, // Enough height for placeholder + images
+    justifyContent: 'center'
   },
-  uploadButtonArea: {
+  uploadPlaceholder: {
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
     width: '100%',
+    paddingVertical: 10
   },
   uploadText: { fontSize: 15, fontWeight: "600", marginTop: 8 },
   uploadHint: { fontSize: 13, color: BrandColors.gray500 },
-  
-  previewWrapper: {
-    marginTop: 15, // Space between button and images
-    borderTopWidth: 1, // Optional divider
-    borderTopColor: '#eee',
-    paddingTop: 15,
+  imageListInside: {
+    marginTop: 12,
+    width: '100%',
+    flexGrow: 0
   },
   previewContainer: { marginRight: 10, position: 'relative' },
   previewImage: { width: 70, height: 70, borderRadius: 8 },
   removeBtn: { position: 'absolute', top: -6, right: -6, backgroundColor: BrandColors.error, borderRadius: 10, width: 20, height: 20, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#fff' },
-  // ------------------------------
+  // -----------------------------------
 
   addBtn: { backgroundColor: BrandColors.primary, width: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
