@@ -1,18 +1,12 @@
 import { BrandColors } from "@/constants/colors";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useTheme } from "@/contexts/ThemeContext";
-import {
-  getActiveOrders,
-  getCancelledOrders,
-  getCompletedOrders,
-  getFreelancerById,
-  getGigById,
-  type Order,
-} from "@/mocks/data";
+import { useOrders, type OrderWithDetails } from "@/hooks/useOrders";
+import { useAuth } from "@/contexts/AuthContext";
 import { Image } from "expo-image";
 import { Stack, useRouter } from "expo-router";
 import { Calendar, Clock, Package, ShoppingBag, X } from "lucide-react-native";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   FlatList,
   ScrollView,
@@ -20,6 +14,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  ActivityIndicator,
 } from "react-native";
 
 type TabType = "active" | "completed" | "cancelled";
@@ -28,11 +23,25 @@ export default function OrdersScreen() {
   const { t } = useLanguage();
   const { theme } = useTheme();
   const router = useRouter();
+  const { user } = useAuth();
   const [selectedTab, setSelectedTab] = useState<TabType>("active");
 
-  const activeOrders = getActiveOrders();
-  const completedOrders = getCompletedOrders();
-  const cancelledOrders = getCancelledOrders();
+  const { data: allOrders, isLoading, error } = useOrders();
+
+  const { activeOrders, completedOrders, cancelledOrders } = useMemo(() => {
+    if (!allOrders) return { activeOrders: [], completedOrders: [], cancelledOrders: [] };
+    
+    return {
+      activeOrders: allOrders.filter(order => 
+        order.status === 'pending_payment' || 
+        order.status === 'in_progress' || 
+        order.status === 'delivered' ||
+        order.status === 'revision_requested'
+      ),
+      completedOrders: allOrders.filter(order => order.status === 'completed'),
+      cancelledOrders: allOrders.filter(order => order.status === 'cancelled'),
+    };
+  }, [allOrders]);
 
   const getCurrentOrders = () => {
     switch (selectedTab) {
@@ -56,9 +65,10 @@ export default function OrdersScreen() {
     });
   };
 
-  const getStatusColor = (status: Order["status"]) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
-      case "active":
+      case "in_progress":
+      case "pending_payment":
         return BrandColors.primary;
       case "delivered":
         return BrandColors.secondary;
@@ -66,14 +76,18 @@ export default function OrdersScreen() {
         return BrandColors.success;
       case "cancelled":
         return BrandColors.error;
+      case "revision_requested":
+        return "#FF9500";
       default:
         return BrandColors.gray400;
     }
   };
 
-  const getStatusText = (status: Order["status"]) => {
+  const getStatusText = (status: string) => {
     switch (status) {
-      case "active":
+      case "pending_payment":
+        return t("pendingPayment") || "Pending Payment";
+      case "in_progress":
         return t("inProgress");
       case "delivered":
         return t("delivered");
@@ -81,16 +95,18 @@ export default function OrdersScreen() {
         return t("completed");
       case "cancelled":
         return t("cancelled");
+      case "revision_requested":
+        return t("revisionRequested") || "Revision Requested";
       default:
         return status;
     }
   };
 
-  const renderOrderCard = ({ item }: { item: Order }) => {
-    const gig = getGigById(item.gigId);
-    const freelancer = getFreelancerById(item.freelancerId);
-
-    if (!gig || !freelancer) return null;
+  const renderOrderCard = ({ item }: { item: OrderWithDetails }) => {
+    if (!item.gig) return null;
+    
+    const otherUser = user?.id === item.buyer_id ? item.seller : item.buyer;
+    if (!otherUser) return null;
 
     return (
       <TouchableOpacity
@@ -98,17 +114,24 @@ export default function OrdersScreen() {
         onPress={() => router.push(`/order/${item.id}` as any)}
       >
         <View style={styles.orderHeader}>
-          <Image source={{ uri: gig.thumbnail }} style={styles.gigThumbnail} />
+          <Image 
+            source={{ uri: item.gig.images?.[0] || 'https://via.placeholder.com/80' }} 
+            style={styles.gigThumbnail} 
+            contentFit="cover"
+          />
           <View style={styles.orderHeaderInfo}>
             <Text style={[styles.gigTitle, { color: theme.text }]} numberOfLines={2}>
-              {gig.title}
+              {item.gig.title}
             </Text>
             <View style={styles.freelancerInfo}>
               <Image
-                source={{ uri: freelancer.avatar }}
+                source={{ uri: otherUser.avatar_url || 'https://via.placeholder.com/24' }}
                 style={styles.smallAvatar}
+                contentFit="cover"
               />
-              <Text style={styles.freelancerName}>{freelancer.name}</Text>
+              <Text style={styles.freelancerName}>
+                {otherUser.full_name || 'User'}
+              </Text>
             </View>
           </View>
         </View>
@@ -119,15 +142,19 @@ export default function OrdersScreen() {
               <Calendar size={16} color={BrandColors.gray500} />
               <Text style={styles.detailLabel}>{t("orderPlaced")}</Text>
             </View>
-            <Text style={[styles.detailValue, { color: theme.text }]}>{formatDate(item.orderDate)}</Text>
+            <Text style={[styles.detailValue, { color: theme.text }]}>
+              {formatDate(item.created_at)}
+            </Text>
           </View>
 
           <View style={styles.detailRow}>
             <View style={styles.detailItem}>
               <Clock size={16} color={BrandColors.gray500} />
-              <Text style={styles.detailLabel}>{t("dueDate")}</Text>
+              <Text style={styles.detailLabel}>{t("orderNumber") || "Order #"}</Text>
             </View>
-            <Text style={[styles.detailValue, { color: theme.text }]}>{formatDate(item.dueDate)}</Text>
+            <Text style={[styles.detailValue, { color: theme.text }]}>
+              {item.order_number || item.id.slice(0, 8)}
+            </Text>
           </View>
 
           <View style={styles.detailRow}>
@@ -156,7 +183,7 @@ export default function OrdersScreen() {
         <View style={[styles.orderFooter, { borderTopColor: theme.border }]}>
           <View style={styles.priceContainer}>
             <Text style={styles.totalLabel}>{t("total")}</Text>
-            <Text style={[styles.totalPrice, { color: theme.text }]}>SAR{item.price}</Text>
+            <Text style={[styles.totalPrice, { color: theme.text }]}>SAR {item.gig_price}</Text>
           </View>
           <TouchableOpacity
             style={styles.viewButton}
@@ -254,17 +281,35 @@ export default function OrdersScreen() {
         </ScrollView>
       </View>
 
-      <FlatList
-        data={getCurrentOrders()}
-        renderItem={renderOrderCard}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={
-          getCurrentOrders().length === 0
-            ? styles.emptyContainer
-            : styles.listContainer
-        }
-        ListEmptyComponent={renderEmptyState}
-      />
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={BrandColors.primary} />
+          <Text style={[styles.loadingText, { color: theme.secondaryText }]}>
+            {t("loading") || "Loading orders..."}
+          </Text>
+        </View>
+      ) : error ? (
+        <View style={styles.errorContainer}>
+          <Text style={[styles.errorText, { color: BrandColors.error }]}>
+            {t("errorLoadingOrders") || "Error loading orders"}
+          </Text>
+          <Text style={[styles.errorDetail, { color: theme.secondaryText }]}>
+            {error.message}
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={getCurrentOrders()}
+          renderItem={renderOrderCard}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={
+            getCurrentOrders().length === 0
+              ? styles.emptyContainer
+              : styles.listContainer
+          }
+          ListEmptyComponent={renderEmptyState}
+        />
+      )}
     </View>
   );
 }
@@ -448,5 +493,33 @@ const styles = StyleSheet.create({
     color: BrandColors.gray500,
     textAlign: "center",
     lineHeight: 22,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 16,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: BrandColors.gray600,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 40,
+    gap: 12,
+  },
+  errorText: {
+    fontSize: 18,
+    fontWeight: "700" as const,
+    color: BrandColors.error,
+    textAlign: "center",
+  },
+  errorDetail: {
+    fontSize: 14,
+    color: BrandColors.gray600,
+    textAlign: "center",
   },
 });
