@@ -1,14 +1,15 @@
 import { BrandColors } from "@/constants/colors";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useTheme } from "@/contexts/ThemeContext";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { useAuth } from "@/contexts/AuthContext";
+import { Stack, useRouter, useLocalSearchParams } from "expo-router";
 import {
   Plus,
   X,
   FileImage,
   Clock,
   Package as PackageIcon,
-  Loader2,
+  ArrowLeft,
 } from "lucide-react-native";
 import React, { useState, useEffect } from "react";
 import {
@@ -20,9 +21,11 @@ import {
   View,
   Alert,
   ActivityIndicator,
+  Image,
 } from "react-native";
-import { useGig, useUpdateGig } from "@/hooks/useGigs";
-import { useCategories } from "@/hooks/useCategories";
+import { useQueryClient } from "@tanstack/react-query";
+import * as ImagePicker from "expo-image-picker"; 
+import { supabase } from "@/lib/supabase";
 
 type PricingPackage = {
   name: "basic" | "standard" | "premium";
@@ -33,836 +36,319 @@ type PricingPackage = {
 };
 
 export default function EditGigScreen() {
-  const { id } = useLocalSearchParams();
+  const { id } = useLocalSearchParams(); // Get the Gig ID from URL
+  const { t } = useLanguage();
   const { theme } = useTheme();
   const router = useRouter();
-  const gigId = Array.isArray(id) ? id[0] : id;
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
 
-  const { data: gig, isLoading: gigLoading, error: gigError } = useGig(gigId || "");
-  const { data: categories = [], isLoading: categoriesLoading } = useCategories();
-  const updateGig = useUpdateGig();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
+  // Form State
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   
+  // Image State
+  const [images, setImages] = useState<string[]>([]);
+
   const [packages, setPackages] = useState<PricingPackage[]>([
-    {
-      name: "basic",
-      price: "",
-      deliveryDays: "",
-      description: "",
-      features: [""],
-    },
-    {
-      name: "standard",
-      price: "",
-      deliveryDays: "",
-      description: "",
-      features: [""],
-    },
-    {
-      name: "premium",
-      price: "",
-      deliveryDays: "",
-      description: "",
-      features: [""],
-    },
+    { name: "basic", price: "", deliveryDays: "", description: "", features: [""] },
+    { name: "standard", price: "", deliveryDays: "", description: "", features: [""] },
+    { name: "premium", price: "", deliveryDays: "", description: "", features: [""] },
   ]);
 
+  // 1. FETCH GIG DATA
   useEffect(() => {
-    if (gig) {
-      console.log("Loading gig data:", gig);
-      setTitle(gig.title || "");
-      setDescription(gig.description || "");
-      setSelectedCategory(gig.category_id || "");
-      setTags(gig.tags || []);
+    if (!id) return;
+    fetchGigDetails();
+  }, [id]);
 
-      if (gig.packages && Array.isArray(gig.packages)) {
-        const savedPackages = gig.packages as Array<{
-          name: "basic" | "standard" | "premium";
-          price: number;
-          deliveryDays: number;
-          description: string;
-          features: string[];
-        }>;
-        
-        const loadedPackages: PricingPackage[] = [
-          {
-            name: "basic",
-            price: savedPackages.find(p => p.name === "basic")?.price?.toString() || gig.price?.toString() || "",
-            deliveryDays: savedPackages.find(p => p.name === "basic")?.deliveryDays?.toString() || gig.delivery_time?.toString() || "",
-            description: savedPackages.find(p => p.name === "basic")?.description || "",
-            features: savedPackages.find(p => p.name === "basic")?.features || [""],
-          },
-          {
-            name: "standard",
-            price: savedPackages.find(p => p.name === "standard")?.price?.toString() || "",
-            deliveryDays: savedPackages.find(p => p.name === "standard")?.deliveryDays?.toString() || "",
-            description: savedPackages.find(p => p.name === "standard")?.description || "",
-            features: savedPackages.find(p => p.name === "standard")?.features || [""],
-          },
-          {
-            name: "premium",
-            price: savedPackages.find(p => p.name === "premium")?.price?.toString() || "",
-            deliveryDays: savedPackages.find(p => p.name === "premium")?.deliveryDays?.toString() || "",
-            description: savedPackages.find(p => p.name === "premium")?.description || "",
-            features: savedPackages.find(p => p.name === "premium")?.features || [""],
-          },
-        ];
-        
-        setPackages(loadedPackages);
-      } else {
-        const loadedPackages: PricingPackage[] = [
-          {
-            name: "basic",
-            price: gig.price?.toString() || "",
-            deliveryDays: gig.delivery_time?.toString() || "",
-            description: gig.description || "",
-            features: [""],
-          },
-          {
-            name: "standard",
-            price: "",
-            deliveryDays: "",
-            description: "",
-            features: [""],
-          },
-          {
-            name: "premium",
-            price: "",
-            deliveryDays: "",
-            description: "",
-            features: [""],
-          },
-        ];
-        
-        setPackages(loadedPackages);
+  const fetchGigDetails = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('gigs')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) throw error;
+
+      setTitle(data.title);
+      setDescription(data.description);
+      setSelectedCategory(data.category_id);
+      setTags(data.tags || []);
+      setImages(data.images || []);
+
+      // Parse Packages if they exist
+      if (data.packages && Array.isArray(data.packages)) {
+        // Map database packages back to our UI format
+        const updatedPackages = packages.map(pkg => {
+            const found = data.packages.find((p: any) => p.name === pkg.name);
+            if (found) {
+                return {
+                    name: pkg.name,
+                    price: found.price.toString(),
+                    deliveryDays: found.deliveryDays.toString(),
+                    description: found.description,
+                    features: found.features || [""]
+                };
+            }
+            return pkg;
+        });
+        setPackages(updatedPackages);
       }
+    } catch (error) {
+      console.error('Error fetching gig:', error);
+      Alert.alert("Error", "Could not load service details.");
+    } finally {
+      setLoading(false);
     }
-  }, [gig]);
+  };
 
+  // 2. IMAGE PICKER
+  const pickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false, 
+        allowsMultipleSelection: true,
+        selectionLimit: 5 - images.length,
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        const newUris = result.assets.map(asset => asset.uri);
+        setImages(prev => [...prev, ...newUris].slice(0, 5));
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Could not open gallery.');
+    }
+  };
+
+  const removeImage = (indexToRemove: number) => {
+    setImages(prev => prev.filter((_, index) => index !== indexToRemove));
+  };
+
+  // 3. TAGS & PACKAGES HANDLERS
   const handleAddTag = () => {
     if (tagInput.trim() && tags.length < 5) {
       setTags([...tags, tagInput.trim()]);
       setTagInput("");
     }
   };
+  const handleRemoveTag = (index: number) => setTags(tags.filter((_, i) => i !== index));
 
-  const handleRemoveTag = (index: number) => {
-    setTags(tags.filter((_, i) => i !== index));
+  const updatePackage = (name: string, field: string, value: string) => {
+    setPackages(prev => prev.map(p => p.name === name ? { ...p, [field]: value } : p));
+  };
+  const addFeature = (name: string) => {
+    setPackages(prev => prev.map(p => p.name === name ? { ...p, features: [...p.features, ""] } : p));
+  };
+  const updateFeature = (name: string, idx: number, val: string) => {
+    setPackages(prev => prev.map(p => p.name === name ? { ...p, features: p.features.map((f, i) => i === idx ? val : f) } : p));
+  };
+  const removeFeature = (name: string, idx: number) => {
+    setPackages(prev => prev.map(p => p.name === name ? { ...p, features: p.features.filter((_, i) => i !== idx) } : p));
   };
 
-  const updatePackage = (
-    packageName: "basic" | "standard" | "premium",
-    field: keyof PricingPackage,
-    value: string
-  ) => {
-    setPackages((prev) =>
-      prev.map((pkg) =>
-        pkg.name === packageName ? { ...pkg, [field]: value } : pkg
-      )
-    );
-  };
-
-  const addFeature = (packageName: "basic" | "standard" | "premium") => {
-    setPackages((prev) =>
-      prev.map((pkg) =>
-        pkg.name === packageName
-          ? { ...pkg, features: [...pkg.features, ""] }
-          : pkg
-      )
-    );
-  };
-
-  const updateFeature = (
-    packageName: "basic" | "standard" | "premium",
-    index: number,
-    value: string
-  ) => {
-    setPackages((prev) =>
-      prev.map((pkg) =>
-        pkg.name === packageName
-          ? {
-              ...pkg,
-              features: pkg.features.map((f, i) => (i === index ? value : f)),
-            }
-          : pkg
-      )
-    );
-  };
-
-  const removeFeature = (
-    packageName: "basic" | "standard" | "premium",
-    index: number
-  ) => {
-    setPackages((prev) =>
-      prev.map((pkg) =>
-        pkg.name === packageName
-          ? { ...pkg, features: pkg.features.filter((_, i) => i !== index) }
-          : pkg
-      )
-    );
-  };
-
-  const handleSave = async () => {
-    if (!title.trim()) {
-      Alert.alert("Error", "Please enter a title for your service");
-      return;
-    }
-    if (!description.trim()) {
-      Alert.alert("Error", "Please enter a description");
-      return;
-    }
-    if (!selectedCategory) {
-      Alert.alert("Error", "Please select a category");
-      return;
-    }
-
-    const basicPackage = packages.find((p) => p.name === "basic");
-    if (!basicPackage?.price || parseFloat(basicPackage.price) <= 0) {
-      Alert.alert("Error", "Please set a price for the basic package");
-      return;
-    }
-    if (!basicPackage?.deliveryDays || parseInt(basicPackage.deliveryDays) <= 0) {
-      Alert.alert("Error", "Please set delivery days for the basic package");
-      return;
-    }
+  // 4. UPDATE GIG LOGIC
+  const handleUpdate = async () => {
+    if (!user) return;
+    setSaving(true);
 
     try {
+      // A. Process Images (The tricky part)
+      const finalImageUrls: string[] = [];
+
+      for (const img of images) {
+        // CASE 1: It's an existing URL (starts with http) -> Keep it
+        if (img.startsWith('http')) {
+          finalImageUrls.push(img);
+        } 
+        // CASE 2: It's a new local file (starts with file://) -> Upload it
+        else {
+          const filename = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
+          const formData = new FormData();
+          // @ts-ignore
+          formData.append('file', { uri: img, name: filename, type: 'image/jpeg' });
+
+          const { error: uploadError } = await supabase.storage
+            .from('gig-images')
+            .upload(filename, formData, { contentType: 'image/jpeg' });
+
+          if (uploadError) throw uploadError;
+
+          const { data } = supabase.storage.from('gig-images').getPublicUrl(filename);
+          finalImageUrls.push(data.publicUrl);
+        }
+      }
+
+      // B. Prepare Data
       const packagesData = packages.map(pkg => ({
         name: pkg.name,
-        price: pkg.price ? parseFloat(pkg.price) : 0,
-        deliveryDays: pkg.deliveryDays ? parseInt(pkg.deliveryDays) : 0,
+        price: parseFloat(pkg.price || "0"),
+        deliveryDays: parseInt(pkg.deliveryDays || "0"),
         description: pkg.description,
         features: pkg.features.filter(f => f.trim() !== ""),
-      })).filter(pkg => pkg.price > 0 && pkg.deliveryDays > 0);
-      
-      await updateGig.mutateAsync({
-        id: gigId!,
-        updates: {
-          title: title.trim(),
-          description: description.trim(),
-          category_id: selectedCategory,
-          price: parseFloat(basicPackage.price),
-          delivery_time: parseInt(basicPackage.deliveryDays),
-          tags: tags.length > 0 ? tags : null,
-          packages: packagesData.length > 0 ? packagesData : null,
-        },
-      });
+      })).filter(pkg => pkg.price > 0);
 
-      Alert.alert(
-        "Success",
-        "Your service has been updated successfully!",
-        [
-          {
-            text: "OK",
-            onPress: () => router.back(),
-          },
-        ]
-      );
+      const basicPkg = packagesData.find(p => p.name === "basic");
+      
+      // C. Update Database
+      const { error } = await supabase
+        .from('gigs')
+        .update({
+            title,
+            description,
+            category_id: selectedCategory,
+            price: basicPkg ? basicPkg.price : 0,
+            delivery_time: basicPkg ? basicPkg.deliveryDays : 0,
+            tags,
+            images: finalImageUrls, // Save the mixed list of old and new URLs
+            packages: packagesData
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      // D. Cleanup
+      queryClient.invalidateQueries({ queryKey: ['seller-gigs'] }); // Refresh list
+      Alert.alert("Success", "Service updated successfully!", [{ text: "OK", onPress: () => router.back() }]);
+
     } catch (error: any) {
-      console.error("Error updating gig:", error);
-      let errorMessage = "Failed to update service. Please try again.";
-      
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      } else if (typeof error === 'string') {
-        errorMessage = error;
-      } else if (error?.message) {
-        errorMessage = error.message;
-      }
-      
-      Alert.alert("Error", errorMessage);
+      console.error("Update error:", error);
+      Alert.alert("Error", error.message || "Failed to update service");
+    } finally {
+      setSaving(false);
     }
   };
 
-  const getPackageTitle = (name: string) => {
-    return name.charAt(0).toUpperCase() + name.slice(1);
-  };
+  if (loading) {
+    return <View style={styles.center}><ActivityIndicator size="large" color={BrandColors.primary} /></View>;
+  }
 
+  // Helper styles
   const getPackageColor = (name: string) => {
-    switch (name) {
-      case "basic":
-        return "#4CAF50";
-      case "standard":
-        return BrandColors.primary;
-      case "premium":
-        return BrandColors.accent;
-      default:
-        return BrandColors.primary;
-    }
+    if (name === 'basic') return '#4CAF50';
+    if (name === 'standard') return BrandColors.primary;
+    return BrandColors.accent;
   };
-
-  if (gigLoading || categoriesLoading) {
-    return (
-      <View style={[styles.container, { backgroundColor: theme.background }]}>
-        <Stack.Screen
-          options={{
-            title: "Edit Service",
-            headerStyle: {
-              backgroundColor: theme.headerBackground,
-            },
-            headerTintColor: theme.text,
-          }}
-        />
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={BrandColors.primary} />
-          <Text style={[styles.loadingText, { color: theme.text }]}>Loading...</Text>
-        </View>
-      </View>
-    );
-  }
-
-  if (gigError || !gig) {
-    return (
-      <View style={[styles.container, { backgroundColor: theme.background }]}>
-        <Stack.Screen
-          options={{
-            title: "Edit Service",
-            headerStyle: {
-              backgroundColor: theme.headerBackground,
-            },
-            headerTintColor: theme.text,
-          }}
-        />
-        <View style={styles.errorContainer}>
-          <Text style={[styles.errorText, { color: theme.text }]}>Failed to load gig</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={() => router.back()}>
-            <Text style={styles.retryButtonText}>Go Back</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <Stack.Screen
-        options={{
-          title: "Edit Service",
-          headerStyle: {
-            backgroundColor: theme.headerBackground,
-          },
-          headerTintColor: theme.text,
-        }}
-      />
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Basic Information</Text>
-          
-          <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: theme.text }]}>Service Title *</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: theme.card, color: theme.text, borderColor: theme.border }]}
-              placeholder="E.g., I will design a modern logo"
-              placeholderTextColor={theme.tertiaryText}
-              value={title}
-              onChangeText={setTitle}
-            />
-          </View>
+        <Stack.Screen options={{ title: "Edit Service", headerBackTitle: "Back" }} />
+        
+        <ScrollView contentContainerStyle={styles.content}>
+            {/* Title & Desc */}
+            <View style={styles.section}>
+                <Text style={[styles.label, {color: theme.text}]}>Title</Text>
+                <TextInput style={[styles.input, {color: theme.text, backgroundColor: theme.card}]} value={title} onChangeText={setTitle} />
+                
+                <Text style={[styles.label, {color: theme.text, marginTop: 16}]}>Description</Text>
+                <TextInput style={[styles.input, styles.textArea, {color: theme.text, backgroundColor: theme.card}]} value={description} onChangeText={setDescription} multiline />
+            </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: theme.text }]}>Category *</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.categoriesScroll}
-            >
-              {categories.map((cat) => (
-                <TouchableOpacity
-                  key={cat.id}
-                  style={[
-                    styles.categoryChip,
-                    {
-                      backgroundColor: selectedCategory === cat.id ? BrandColors.primary + "15" : theme.card,
-                      borderColor: selectedCategory === cat.id ? BrandColors.primary : theme.border,
-                    },
-                  ]}
-                  onPress={() => setSelectedCategory(cat.id)}
-                >
-                  <Text
-                    style={[
-                      styles.categoryChipText,
-                      {
-                        color: selectedCategory === cat.id ? BrandColors.primary : theme.secondaryText,
-                      },
-                    ]}
-                  >
-                    {cat.name}
-                  </Text>
+            {/* Images */}
+            <View style={styles.section}>
+                <Text style={[styles.label, {color: theme.text}]}>Images</Text>
+                <TouchableOpacity onPress={pickImage} style={[styles.uploadBox, {borderColor: theme.border, backgroundColor: theme.card}]}>
+                    <FileImage size={24} color={BrandColors.gray400} />
+                    <Text style={{color: theme.text, marginTop: 8}}>Add / Edit Images ({images.length}/5)</Text>
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: theme.text }]}>Description *</Text>
-            <TextInput
-              style={[styles.input, styles.textArea, { backgroundColor: theme.card, color: theme.text, borderColor: theme.border }]}
-              placeholder="Describe your service in detail..."
-              placeholderTextColor={theme.tertiaryText}
-              value={description}
-              onChangeText={setDescription}
-              multiline
-              numberOfLines={6}
-              textAlignVertical="top"
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: theme.text }]}>Search Tags (Max 5)</Text>
-            <View style={styles.tagInputContainer}>
-              <TextInput
-                style={[styles.tagInput, { backgroundColor: theme.card, color: theme.text, borderColor: theme.border }]}
-                placeholder="Add a tag"
-                placeholderTextColor={theme.tertiaryText}
-                value={tagInput}
-                onChangeText={setTagInput}
-                onSubmitEditing={handleAddTag}
-              />
-              <TouchableOpacity
-                style={styles.addTagButton}
-                onPress={handleAddTag}
-                disabled={tags.length >= 5}
-              >
-                <Plus
-                  size={18}
-                  color={tags.length >= 5 ? BrandColors.gray400 : BrandColors.white}
-                />
-              </TouchableOpacity>
+                <ScrollView horizontal style={{marginTop: 12}}>
+                    {images.map((uri, idx) => (
+                        <View key={idx} style={styles.previewContainer}>
+                            <Image source={{ uri }} style={styles.previewImage} />
+                            <TouchableOpacity onPress={() => removeImage(idx)} style={styles.removeBtn}>
+                                <X size={12} color="#fff" />
+                            </TouchableOpacity>
+                        </View>
+                    ))}
+                </ScrollView>
             </View>
-            <View style={styles.tagsContainer}>
-              {tags.map((tag, index) => (
-                <View key={index} style={styles.tag}>
-                  <Text style={styles.tagText}>{tag}</Text>
-                  <TouchableOpacity onPress={() => handleRemoveTag(index)}>
-                    <X size={14} color={BrandColors.primary} />
-                  </TouchableOpacity>
+
+            {/* Tags */}
+            <View style={styles.section}>
+                <Text style={[styles.label, {color: theme.text}]}>Tags</Text>
+                <View style={{flexDirection: 'row', gap: 8}}>
+                    <TextInput style={[styles.input, {flex: 1, backgroundColor: theme.card, color: theme.text}]} value={tagInput} onChangeText={setTagInput} placeholder="Add tag" placeholderTextColor={theme.tertiaryText} />
+                    <TouchableOpacity onPress={handleAddTag} style={styles.addBtn}><Plus color="#fff" /></TouchableOpacity>
                 </View>
-              ))}
+                <View style={styles.tagsRow}>
+                    {tags.map((t, i) => (
+                        <View key={i} style={styles.tag}><Text style={styles.tagText}>{t}</Text><TouchableOpacity onPress={()=>handleRemoveTag(i)}><X size={12} color={BrandColors.primary}/></TouchableOpacity></View>
+                    ))}
+                </View>
             </View>
-          </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: theme.text }]}>Service Images</Text>
-            <TouchableOpacity style={[styles.uploadBox, { backgroundColor: theme.card, borderColor: theme.border }]}>
-              <FileImage size={32} color={BrandColors.gray400} />
-              <Text style={[styles.uploadText, { color: theme.text }]}>Upload Images</Text>
-              <Text style={styles.uploadHint}>Up to 5 images</Text>
+            {/* Packages */}
+            <Text style={[styles.sectionTitle, {color: theme.text}]}>Packages</Text>
+            {packages.map((pkg) => (
+                <View key={pkg.name} style={[styles.pkgCard, {backgroundColor: theme.card, borderLeftColor: getPackageColor(pkg.name)}]}>
+                    <Text style={[styles.pkgTitle, {color: getPackageColor(pkg.name)}]}>{pkg.name.toUpperCase()}</Text>
+                    
+                    <View style={styles.row}>
+                        <View style={{flex: 1}}>
+                            <Text style={styles.smallLabel}>Price</Text>
+                            <TextInput style={[styles.input, {backgroundColor: theme.background, color: theme.text}]} value={pkg.price} onChangeText={v => updatePackage(pkg.name, 'price', v)} keyboardType="numeric" />
+                        </View>
+                        <View style={{flex: 1}}>
+                            <Text style={styles.smallLabel}>Days</Text>
+                            <TextInput style={[styles.input, {backgroundColor: theme.background, color: theme.text}]} value={pkg.deliveryDays} onChangeText={v => updatePackage(pkg.name, 'deliveryDays', v)} keyboardType="numeric" />
+                        </View>
+                    </View>
+
+                    <Text style={styles.smallLabel}>Description</Text>
+                    <TextInput style={[styles.input, {backgroundColor: theme.background, color: theme.text, height: 60}]} multiline value={pkg.description} onChangeText={v => updatePackage(pkg.name, 'description', v)} />
+
+                    <Text style={styles.smallLabel}>Features</Text>
+                    {pkg.features.map((f, i) => (
+                        <View key={i} style={{flexDirection: 'row', gap: 8, marginBottom: 8}}>
+                            <TextInput style={[styles.input, {flex: 1, height: 40, backgroundColor: theme.background, color: theme.text}]} value={f} onChangeText={v => updateFeature(pkg.name, i, v)} />
+                            <TouchableOpacity onPress={()=>removeFeature(pkg.name, i)} style={styles.removeFeatureBtn}><X size={14} color="red"/></TouchableOpacity>
+                        </View>
+                    ))}
+                    <TouchableOpacity onPress={()=>addFeature(pkg.name)}><Text style={{color: BrandColors.primary, fontWeight: '600'}}>+ Add Feature</Text></TouchableOpacity>
+                </View>
+            ))}
+
+            <TouchableOpacity onPress={handleUpdate} disabled={saving} style={[styles.saveBtn, saving && {opacity: 0.7}]}>
+                {saving ? <ActivityIndicator color="#fff"/> : <Text style={styles.saveBtnText}>Save Changes</Text>}
             </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Pricing Packages</Text>
-          
-          {packages.map((pkg) => (
-            <View
-              key={pkg.name}
-              style={[
-                styles.packageCard,
-                { backgroundColor: theme.card, borderLeftColor: getPackageColor(pkg.name) },
-              ]}
-            >
-              <View
-                style={[
-                  styles.packageHeader,
-                  { backgroundColor: getPackageColor(pkg.name) + "15" },
-                ]}
-              >
-                <PackageIcon
-                  size={20}
-                  color={getPackageColor(pkg.name)}
-                />
-                <Text
-                  style={[
-                    styles.packageTitle,
-                    { color: getPackageColor(pkg.name) },
-                  ]}
-                >
-                  {getPackageTitle(pkg.name)} Package
-                </Text>
-              </View>
-
-              <View style={styles.packageContent}>
-                <View style={styles.row}>
-                  <View style={styles.halfInput}>
-                    <Text style={styles.smallLabel}>Price (SAR) *</Text>
-                    <View style={styles.iconInput}>
-                      <TextInput
-                        style={styles.iconInputField}
-                        placeholder="0"
-                        placeholderTextColor={theme.tertiaryText}
-                        value={pkg.price}
-                        onChangeText={(value) =>
-                          updatePackage(pkg.name, "price", value)
-                        }
-                        keyboardType="numeric"
-                      />
-                    </View>
-                  </View>
-
-                  <View style={styles.halfInput}>
-                    <Text style={styles.smallLabel}>Delivery Days *</Text>
-                    <View style={styles.iconInput}>
-                      <Clock size={16} color={BrandColors.gray500} />
-                      <TextInput
-                        style={styles.iconInputField}
-                        placeholder="0"
-                        placeholderTextColor={theme.tertiaryText}
-                        value={pkg.deliveryDays}
-                        onChangeText={(value) =>
-                          updatePackage(pkg.name, "deliveryDays", value)
-                        }
-                        keyboardType="numeric"
-                      />
-                    </View>
-                  </View>
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.smallLabel}>Package Description *</Text>
-                  <TextInput
-                    style={[styles.input, styles.textAreaSmall, { backgroundColor: theme.card, color: theme.text, borderColor: theme.border }]}
-                    placeholder="Brief description of this package"
-                    placeholderTextColor={theme.tertiaryText}
-                    value={pkg.description}
-                    onChangeText={(value) =>
-                      updatePackage(pkg.name, "description", value)
-                    }
-                    multiline
-                    numberOfLines={3}
-                    textAlignVertical="top"
-                  />
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.smallLabel}>Features</Text>
-                  {pkg.features.map((feature, index) => (
-                    <View key={index} style={styles.featureRow}>
-                      <TextInput
-                        style={[styles.featureInput, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]}
-                        placeholder={`Feature ${index + 1}`}
-                        placeholderTextColor={theme.tertiaryText}
-                        value={feature}
-                        onChangeText={(value) =>
-                          updateFeature(pkg.name, index, value)
-                        }
-                      />
-                      {pkg.features.length > 1 && (
-                        <TouchableOpacity
-                          onPress={() => removeFeature(pkg.name, index)}
-                          style={styles.removeFeatureButton}
-                        >
-                          <X size={16} color={BrandColors.error} />
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  ))}
-                  <TouchableOpacity
-                    style={styles.addFeatureButton}
-                    onPress={() => addFeature(pkg.name)}
-                  >
-                    <Plus size={16} color={BrandColors.primary} />
-                    <Text style={styles.addFeatureText}>Add Feature</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          ))}
-        </View>
-
-        <TouchableOpacity 
-          style={[styles.saveButton, updateGig.isPending && styles.saveButtonDisabled]} 
-          onPress={handleSave}
-          disabled={updateGig.isPending}
-        >
-          {updateGig.isPending ? (
-            <ActivityIndicator color={BrandColors.white} />
-          ) : (
-            <Text style={styles.saveButtonText}>Save Changes</Text>
-          )}
-        </TouchableOpacity>
-
-        <View style={styles.bottomPadding} />
-      </ScrollView>
+            <View style={{height: 40}} />
+        </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    padding: 20,
-  },
-  section: {
-    marginBottom: 32,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "700" as const,
-    color: BrandColors.neutralDark,
-    marginBottom: 20,
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 15,
-    fontWeight: "600" as const,
-    color: BrandColors.neutralDark,
-    marginBottom: 10,
-  },
-  smallLabel: {
-    fontSize: 13,
-    fontWeight: "600" as const,
-    color: BrandColors.gray600,
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: BrandColors.white,
-    borderWidth: 1,
-    borderColor: BrandColors.gray200,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 15,
-    color: BrandColors.neutralDark,
-  },
-  textArea: {
-    minHeight: 120,
-    paddingTop: 14,
-  },
-  textAreaSmall: {
-    minHeight: 80,
-    paddingTop: 14,
-  },
-  categoriesScroll: {
-    gap: 8,
-  },
-  categoryChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 24,
-    borderWidth: 2,
-  },
-  categoryChipActive: {},
-  categoryChipText: {
-    fontSize: 14,
-    fontWeight: "600" as const,
-  },
-  categoryChipTextActive: {},
-  tagInputContainer: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 12,
-  },
-  tagInput: {
-    flex: 1,
-    backgroundColor: BrandColors.white,
-    borderWidth: 1,
-    borderColor: BrandColors.gray200,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 15,
-    color: BrandColors.neutralDark,
-  },
-  addTagButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: BrandColors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  tagsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  tag: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: BrandColors.primary + "15",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  tagText: {
-    fontSize: 13,
-    fontWeight: "600" as const,
-    color: BrandColors.primary,
-  },
-  uploadBox: {
-    backgroundColor: BrandColors.white,
-    borderWidth: 2,
-    borderColor: BrandColors.gray200,
-    borderStyle: "dashed",
-    borderRadius: 16,
-    padding: 32,
-    alignItems: "center",
-    gap: 8,
-  },
-  uploadText: {
-    fontSize: 15,
-    fontWeight: "600" as const,
-    color: BrandColors.neutralDark,
-  },
-  uploadHint: {
-    fontSize: 13,
-    color: BrandColors.gray500,
-  },
-  packageCard: {
-    backgroundColor: BrandColors.white,
-    borderRadius: 16,
-    marginBottom: 16,
-    borderLeftWidth: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 3,
-    overflow: "hidden",
-  },
-  packageHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    padding: 16,
-  },
-  packageTitle: {
-    fontSize: 16,
-    fontWeight: "700" as const,
-  },
-  packageContent: {
-    padding: 16,
-  },
-  row: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 16,
-  },
-  halfInput: {
-    flex: 1,
-  },
-  iconInput: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: BrandColors.white,
-    borderWidth: 1,
-    borderColor: BrandColors.gray200,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  iconInputField: {
-    flex: 1,
-    fontSize: 15,
-    color: BrandColors.neutralDark,
-  },
-  featureRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 8,
-  },
-  featureInput: {
-    flex: 1,
-    backgroundColor: BrandColors.gray100,
-    borderWidth: 1,
-    borderColor: BrandColors.gray200,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: BrandColors.neutralDark,
-  },
-  removeFeatureButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: BrandColors.error + "15",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  addFeatureButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingVertical: 10,
-  },
-  addFeatureText: {
-    fontSize: 14,
-    fontWeight: "600" as const,
-    color: BrandColors.primary,
-  },
-  saveButton: {
-    backgroundColor: BrandColors.primary,
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: "center",
-    shadowColor: BrandColors.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  saveButtonText: {
-    fontSize: 17,
-    fontWeight: "700" as const,
-    color: BrandColors.white,
-  },
-  bottomPadding: {
-    height: 40,
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-  },
-  loadingText: {
-    fontSize: 16,
-    fontWeight: "600" as const,
-  },
-  errorContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 16,
-    padding: 20,
-  },
-  errorText: {
-    fontSize: 16,
-    fontWeight: "600" as const,
-    textAlign: "center",
-  },
-  retryButton: {
-    backgroundColor: BrandColors.primary,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  retryButtonText: {
-    color: BrandColors.white,
-    fontSize: 16,
-    fontWeight: "600" as const,
-  },
-  saveButtonDisabled: {
-    opacity: 0.6,
-  },
+  container: { flex: 1 },
+  content: { padding: 20 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  section: { marginBottom: 24 },
+  label: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
+  input: { borderRadius: 8, padding: 12, fontSize: 16, marginBottom: 12 },
+  textArea: { minHeight: 100, textAlignVertical: 'top' },
+  uploadBox: { height: 80, borderWidth: 1, borderStyle: 'dashed', borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  previewContainer: { marginRight: 10, position: 'relative' },
+  previewImage: { width: 80, height: 80, borderRadius: 8 },
+  removeBtn: { position: 'absolute', top: -5, right: -5, backgroundColor: 'red', borderRadius: 10, width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
+  addBtn: { backgroundColor: BrandColors.primary, width: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  tag: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#E0F2F1', padding: 8, borderRadius: 16 },
+  tagText: { color: BrandColors.primary, fontWeight: '600' },
+  sectionTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 16 },
+  pkgCard: { borderRadius: 12, padding: 16, marginBottom: 16, borderLeftWidth: 4 },
+  pkgTitle: { fontWeight: 'bold', marginBottom: 12 },
+  row: { flexDirection: 'row', gap: 12, marginBottom: 12 },
+  smallLabel: { fontSize: 12, color: '#666', marginBottom: 4 },
+  removeFeatureBtn: { width: 40, alignItems: 'center', justifyContent: 'center' },
+  saveBtn: { backgroundColor: BrandColors.primary, padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 20 },
+  saveBtnText: { color: '#fff', fontSize: 18, fontWeight: 'bold' }
 });
