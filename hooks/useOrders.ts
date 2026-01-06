@@ -73,7 +73,7 @@ export function useOrders(params?: {
           hint: error.hint,
           code: error.code
         });
-        throw error;
+        throw new Error(`Failed to fetch orders: ${error.message}${error.details ? ` - ${error.details}` : ''}${error.hint ? ` (${error.hint})` : ''}`);
       }
 
       console.log(`Fetched ${data?.length || 0} orders`);

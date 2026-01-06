@@ -294,7 +294,7 @@ export default function OrdersScreen() {
             {t("errorLoadingOrders") || "Error loading orders"}
           </Text>
           <Text style={[styles.errorDetail, { color: theme.secondaryText }]}>
-            {error.message}
+            {error instanceof Error ? error.message : JSON.stringify(error)}
           </Text>
         </View>
       ) : (
