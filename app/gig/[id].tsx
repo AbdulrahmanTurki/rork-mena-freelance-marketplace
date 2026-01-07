@@ -1,10 +1,9 @@
 import { BrandColors } from "@/constants/colors";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useTheme } from "@/contexts/ThemeContext";
-import { getFreelancerById, getGigById } from "@/mocks/data";
 import { Image } from "expo-image";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { ArrowLeft, Clock, Star, Check, MessageCircle } from "lucide-react-native";
+import { ArrowLeft, Clock, Star, Check, MessageCircle, Tag } from "lucide-react-native";
 import React, { useState } from "react";
 import {
   ScrollView,
@@ -13,8 +12,10 @@ import {
   TouchableOpacity,
   View,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useGig } from "@/hooks/useGigs";
 
 const { width } = Dimensions.get("window");
 
@@ -28,18 +29,26 @@ export default function GigDetailScreen() {
     "basic"
   );
 
-  const gig = getGigById(id as string);
-  const freelancer = gig ? getFreelancerById(gig.freelancerId) : undefined;
+  const { data: gig, isLoading } = useGig(id as string);
 
-  if (!gig || !freelancer) {
+  if (isLoading) {
     return (
-      <View style={styles.container}>
-        <Text>Gig not found</Text>
+      <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={BrandColors.primary} />
       </View>
     );
   }
 
-  const selectedPricing = gig.pricing.find((p) => p.name === selectedTier);
+  if (!gig) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: theme.text, fontSize: 16 }}>Gig not found</Text>
+      </View>
+    );
+  }
+
+  const packages = (gig.packages as any) || [];
+  const selectedPackage = packages.find((p: any) => p.name === selectedTier);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -58,7 +67,7 @@ export default function GigDetailScreen() {
           showsHorizontalScrollIndicator={false}
           style={styles.imageCarousel}
         >
-          {gig.images.map((image, index) => (
+          {(gig.images as string[])?.map((image, index) => (
             <Image key={index} source={{ uri: image }} style={styles.gigImage} />
           ))}
         </ScrollView>
@@ -66,11 +75,11 @@ export default function GigDetailScreen() {
         <View style={styles.content}>
           <View style={styles.sellerInfo}>
             <Image
-              source={{ uri: freelancer.avatar }}
+              source={{ uri: gig.seller?.avatar_url || 'https://ui-avatars.com/api/?name=' + gig.seller?.full_name }}
               style={styles.sellerAvatar}
             />
             <View style={styles.sellerDetails}>
-              <Text style={[styles.sellerName, { color: theme.text }]}>{freelancer.name}</Text>
+              <Text style={[styles.sellerName, { color: theme.text }]}>{gig.seller?.full_name || 'Seller'}</Text>
               <View style={styles.sellerStats}>
                 <View style={styles.rating}>
                   <Star
@@ -78,11 +87,11 @@ export default function GigDetailScreen() {
                     fill={BrandColors.secondary}
                     color={BrandColors.secondary}
                   />
-                  <Text style={[styles.ratingText, { color: theme.text }]}>{freelancer.rating}</Text>
+                  <Text style={[styles.ratingText, { color: theme.text }]}>{gig.seller?.rating || 5.0}</Text>
                 </View>
                 <Text style={[styles.statSeparator, { color: theme.tertiaryText }]}>•</Text>
                 <Text style={[styles.statText, { color: theme.secondaryText }]}>
-                  {freelancer.reviewCount} {t("reviews")}
+                  {gig.seller?.review_count || 0} {t("reviews")}
                 </Text>
               </View>
             </View>
@@ -90,8 +99,19 @@ export default function GigDetailScreen() {
 
           <Text style={[styles.gigTitle, { color: theme.text }]}>{gig.title}</Text>
 
+          {(gig.tags as string[])?.length > 0 && (
+            <View style={styles.tagsContainer}>
+              {(gig.tags as string[]).map((tag, index) => (
+                <View key={index} style={[styles.tag, { backgroundColor: BrandColors.primary + '15' }]}>
+                  <Tag size={12} color={BrandColors.primary} />
+                  <Text style={[styles.tagText, { color: BrandColors.primary }]}>{tag}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
           <View style={styles.pricingSelector}>
-            {gig.pricing.map((tier) => (
+            {packages.map((tier: any) => (
               <TouchableOpacity
                 key={tier.name}
                 style={[
@@ -114,29 +134,29 @@ export default function GigDetailScreen() {
             ))}
           </View>
 
-          {selectedPricing && (
+          {selectedPackage && (
             <View style={[styles.pricingCard, { backgroundColor: theme.card }]}>
               <View style={styles.pricingHeader}>
                 <View>
                   <Text style={[styles.pricingTitle, { color: theme.text }]}>
-                    {t(selectedPricing.name)} Package
+                    {t(selectedPackage.name)} Package
                   </Text>
                   <Text style={[styles.pricingDescription, { color: theme.secondaryText }]}>
-                    {selectedPricing.description}
+                    {selectedPackage.description}
                   </Text>
                 </View>
-                <Text style={styles.pricingPrice}>${selectedPricing.price}</Text>
+                <Text style={styles.pricingPrice}>SAR{selectedPackage.price}</Text>
               </View>
 
               <View style={[styles.deliveryTime, { borderBottomColor: theme.border }]}>
                 <Clock size={16} color={theme.secondaryText} />
                 <Text style={[styles.deliveryText, { color: theme.secondaryText }]}>
-                  {selectedPricing.deliveryDays} {t("days")} {t("deliveryTime")}
+                  {selectedPackage.delivery_days} {t("days")} {t("deliveryTime")}
                 </Text>
               </View>
 
               <View style={styles.featuresList}>
-                {selectedPricing.features.map((feature, index) => (
+                {selectedPackage.features.map((feature: string, index: number) => (
                   <View key={index} style={styles.featureItem}>
                     <Check size={16} color={BrandColors.primary} />
                     <Text style={[styles.featureText, { color: theme.text }]}>{feature}</Text>
@@ -146,13 +166,13 @@ export default function GigDetailScreen() {
 
               <TouchableOpacity style={styles.orderButton} onPress={() => router.push("/checkout" as any)}>
                 <Text style={styles.orderButtonText}>
-                  Continue (SAR{selectedPricing.price})
+                  Continue (SAR{selectedPackage.price})
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity 
                 style={styles.chatButton}
-                onPress={() => router.push(`/chat/${freelancer.id}` as any)}
+                onPress={() => router.push(`/chat/${gig.seller?.id}` as any)}
               >
                 <MessageCircle size={20} color={BrandColors.primary} />
                 <Text style={styles.chatButtonText}>Chat with Seller</Text>
@@ -163,33 +183,6 @@ export default function GigDetailScreen() {
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: theme.text }]}>{t("aboutThisGig")}</Text>
             <Text style={[styles.description, { color: theme.secondaryText }]}>{gig.description}</Text>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>{t("aboutSeller")}</Text>
-            <View style={[styles.aboutSeller, { backgroundColor: theme.card }]}>
-              <Text style={[styles.aboutSellerBio, { color: theme.secondaryText }]}>{freelancer.bio}</Text>
-              <View style={styles.sellerMeta}>
-                <View style={styles.metaRow}>
-                  <Text style={[styles.metaLabel, { color: theme.secondaryText }]}>{t("languages")}:</Text>
-                  <Text style={[styles.metaValue, { color: theme.text }]}>
-                    {freelancer.languages.join(", ")}
-                  </Text>
-                </View>
-                <View style={styles.metaRow}>
-                  <Text style={[styles.metaLabel, { color: theme.secondaryText }]}>{t("skills")}:</Text>
-                  <Text style={[styles.metaValue, { color: theme.text }]}>
-                    {freelancer.skills.join(", ")}
-                  </Text>
-                </View>
-                <View style={styles.metaRow}>
-                  <Text style={[styles.metaLabel, { color: theme.secondaryText }]}>{t("memberSince")}:</Text>
-                  <Text style={[styles.metaValue, { color: theme.text }]}>
-                    {new Date(freelancer.memberSince).toLocaleDateString()}
-                  </Text>
-                </View>
-              </View>
-            </View>
           </View>
 
           <View style={styles.bottomPadding} />
@@ -445,6 +438,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: BrandColors.neutralDark,
     flex: 1,
+  },
+  tagsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 20,
+  },
+  tag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  tagText: {
+    fontSize: 12,
+    fontWeight: "600" as const,
   },
   bottomPadding: {
     height: 40,

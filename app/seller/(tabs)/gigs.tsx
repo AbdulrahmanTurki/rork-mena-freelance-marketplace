@@ -126,168 +126,182 @@ export default function SellerGigs() {
               const startingPrice = packages?.[0]?.price || gig.price || 0;
 
               return (
-                <View key={gig.id} style={[styles.gigCard, { backgroundColor: theme.card }]}>
-                  <Image
-                    source={{ uri: thumbnail }}
-                    style={styles.gigThumbnail}
-                  />
+                <React.Fragment key={gig.id}>
                   <TouchableOpacity
-                    style={[styles.moreButton, { backgroundColor: theme.card }]}
-                    onPress={() => setSelectedGig(gig.id)}
+                    style={[styles.gigCard, { backgroundColor: theme.card }]}
+                    onPress={() => handlePreviewGig(gig.id)}
+                    activeOpacity={0.7}
                   >
-                    <MoreVertical size={20} color={theme.text} />
-                  </TouchableOpacity>
-                  
-                  <View style={styles.gigContent}>
-                    <View style={styles.gigHeader}>
-                      <View
-                        style={[
-                          styles.statusBadge,
-                          {
-                            backgroundColor: gig.is_active
-                              ? BrandColors.primary + "15"
-                              : BrandColors.gray300 + "30",
-                          },
-                        ]}
-                      >
-                        <View style={[styles.statusDot, {
-                          backgroundColor: gig.is_active
-                            ? BrandColors.primary
-                            : BrandColors.gray500,
-                        }]} />
-                        <Text
+                    <Image
+                      source={{ uri: thumbnail }}
+                      style={styles.gigThumbnail}
+                    />
+                    <TouchableOpacity
+                      style={[styles.moreButton, { backgroundColor: theme.card }]}
+                      onPress={(e: any) => {
+                        e.stopPropagation();
+                        setSelectedGig(gig.id);
+                      }}
+                    >
+                      <MoreVertical size={20} color={theme.text} />
+                    </TouchableOpacity>
+                    
+                    <View style={styles.gigContent}>
+                      <View style={styles.gigHeader}>
+                        <View
                           style={[
-                            styles.statusText,
+                            styles.statusBadge,
                             {
-                              color: gig.is_active
-                                ? BrandColors.primary
-                                : BrandColors.gray600,
+                              backgroundColor: gig.is_active
+                                ? BrandColors.primary + "15"
+                                : BrandColors.gray300 + "30",
                             },
                           ]}
                         >
-                          {gig.is_active ? t("active") : t("paused")}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <Text style={[styles.gigTitle, { color: theme.text }]} numberOfLines={2}>
-                      {gig.title}
-                    </Text>
-
-                    <View style={styles.gigStats}>
-                      <View style={styles.statItem}>
-                        <View style={styles.statIconBg}>
-                          <Star
-                            size={14}
-                            fill={BrandColors.secondary}
-                            color={BrandColors.secondary}
-                          />
-                        </View>
-                        <Text style={[styles.statText, { color: theme.secondaryText }]}>
-                          {gig.rating || 0} ({gig.reviews_count || 0})
-                        </Text>
-                      </View>
-                      <View style={styles.statItem}>
-                        <View style={styles.statIconBg}>
-                          <Eye size={14} color={BrandColors.primary} />
-                        </View>
-                        <Text style={[styles.statText, { color: theme.secondaryText }]}>0</Text>
-                      </View>
-                      <View style={styles.statItem}>
-                        <View style={styles.statIconBg}>
-                          <TrendingUp size={14} color={BrandColors.accent} />
-                        </View>
-                        <Text style={[styles.statText, { color: theme.secondaryText }]}>
-                          {gig.orders_count || 0} {t("orders")}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.gigFooter}>
-                      <View>
-                        <Text style={[styles.priceLabel, { color: theme.tertiaryText }]}>{t("startingAt")}</Text>
-                        <Text style={[styles.gigPrice, { color: theme.text }]}>
-                          {startingPrice} SAR
-                        </Text>
-                      </View>
-                      <TouchableOpacity
-                        style={styles.editQuickButton}
-                        onPress={() => handleEditGig(gig.id)}
-                      >
-                        <Edit3 size={16} color={BrandColors.primary} strokeWidth={2.5} />
-                        <Text style={styles.editQuickButtonText}>{t("edit")}</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-
-                  <Modal
-                    visible={selectedGig === gig.id}
-                    transparent
-                    animationType="fade"
-                    onRequestClose={() => setSelectedGig(null)}
-                  >
-                    <TouchableOpacity
-                      style={styles.modalOverlay}
-                      activeOpacity={1}
-                      onPress={() => setSelectedGig(null)}
-                    >
-                      <View style={[styles.menuModal, { backgroundColor: theme.card }]}>
-                        <TouchableOpacity
-                          style={styles.menuItem}
-                          onPress={() => handlePreviewGig(gig.id)}
-                        >
-                          <View style={[styles.menuIcon, { backgroundColor: BrandColors.accent + "15" }]}>
-                            <ExternalLink size={18} color={BrandColors.accent} />
-                          </View>
-                          <Text style={[styles.menuText, { color: theme.text }]}>{t("preview Gig")}</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          style={styles.menuItem}
-                          onPress={() => handleEditGig(gig.id)}
-                        >
-                          <View style={[styles.menuIcon, { backgroundColor: BrandColors.primary + "15" }]}>
-                            <Edit3 size={18} color={BrandColors.primary} />
-                          </View>
-                          <Text style={[styles.menuText, { color: theme.text }]}>{t("edit Gig")}</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          style={styles.menuItem}
-                          onPress={() => handleToggleStatus(gig.id, gig.is_active)}
-                        >
-                          {gig.is_active ? (
-                            <>
-                              <View style={[styles.menuIcon, { backgroundColor: BrandColors.warning + "15" }]}>
-                                <Pause size={18} color={BrandColors.warning} />
-                              </View>
-                              <Text style={[styles.menuText, { color: theme.text }]}>{t("pause Gig")}</Text>
-                            </>
-                          ) : (
-                            <>
-                              <View style={[styles.menuIcon, { backgroundColor: BrandColors.success + "15" }]}>
-                                <Play size={18} color={BrandColors.success} />
-                              </View>
-                              <Text style={[styles.menuText, { color: theme.text }]}>{t("activate Gig")}</Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          style={styles.menuItem}
-                          onPress={() => handleDeleteGig(gig.id)}
-                        >
-                          <View style={[styles.menuIcon, { backgroundColor: BrandColors.error + "15" }]}>
-                            <Trash2 size={18} color={BrandColors.error} />
-                          </View>
-                          <Text style={[styles.menuText, { color: BrandColors.error }]}>
-                            {t("delete Gig")}
+                          <View style={[styles.statusDot, {
+                            backgroundColor: gig.is_active
+                              ? BrandColors.primary
+                              : BrandColors.gray500,
+                          }]} />
+                          <Text
+                            style={[
+                              styles.statusText,
+                              {
+                                color: gig.is_active
+                                  ? BrandColors.primary
+                                  : BrandColors.gray600,
+                              },
+                            ]}
+                          >
+                            {gig.is_active ? t("active") : t("paused")}
                           </Text>
+                        </View>
+                      </View>
+
+                      <Text style={[styles.gigTitle, { color: theme.text }]} numberOfLines={2}>
+                        {gig.title}
+                      </Text>
+
+                      <View style={styles.gigStats}>
+                        <View style={styles.statItem}>
+                          <View style={styles.statIconBg}>
+                            <Star
+                              size={14}
+                              fill={BrandColors.secondary}
+                              color={BrandColors.secondary}
+                            />
+                          </View>
+                          <Text style={[styles.statText, { color: theme.secondaryText }]}>
+                            {gig.rating || 0} ({gig.reviews_count || 0})
+                          </Text>
+                        </View>
+                        <View style={styles.statItem}>
+                          <View style={styles.statIconBg}>
+                            <Eye size={14} color={BrandColors.primary} />
+                          </View>
+                          <Text style={[styles.statText, { color: theme.secondaryText }]}>0</Text>
+                        </View>
+                        <View style={styles.statItem}>
+                          <View style={styles.statIconBg}>
+                            <TrendingUp size={14} color={BrandColors.accent} />
+                          </View>
+                          <Text style={[styles.statText, { color: theme.secondaryText }]}>
+                            {gig.orders_count || 0} {t("orders")}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.gigFooter}>
+                        <View>
+                          <Text style={[styles.priceLabel, { color: theme.tertiaryText }]}>{t("startingAt")}</Text>
+                          <Text style={[styles.gigPrice, { color: theme.text }]}>
+                            {startingPrice} SAR
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          style={styles.editQuickButton}
+                          onPress={(e: any) => {
+                            e.stopPropagation();
+                            handleEditGig(gig.id);
+                          }}
+                        >
+                          <Edit3 size={16} color={BrandColors.primary} strokeWidth={2.5} />
+                          <Text style={styles.editQuickButtonText}>{t("edit")}</Text>
                         </TouchableOpacity>
                       </View>
-                    </TouchableOpacity>
-                  </Modal>
-                </View>
+                    </View>
+                  </TouchableOpacity>
+
+                  {selectedGig === gig.id && (
+                    <Modal
+                      visible={true}
+                      transparent
+                      animationType="fade"
+                      onRequestClose={() => setSelectedGig(null)}
+                    >
+                      <TouchableOpacity
+                        style={styles.modalOverlay}
+                        activeOpacity={1}
+                        onPress={() => setSelectedGig(null)}
+                      >
+                        <View style={[styles.menuModal, { backgroundColor: theme.card }]}>
+                          <TouchableOpacity
+                            style={styles.menuItem}
+                            onPress={() => handlePreviewGig(gig.id)}
+                          >
+                            <View style={[styles.menuIcon, { backgroundColor: BrandColors.accent + "15" }]}>
+                              <ExternalLink size={18} color={BrandColors.accent} />
+                            </View>
+                            <Text style={[styles.menuText, { color: theme.text }]}>{t("preview Gig")}</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.menuItem}
+                            onPress={() => handleEditGig(gig.id)}
+                          >
+                            <View style={[styles.menuIcon, { backgroundColor: BrandColors.primary + "15" }]}>
+                              <Edit3 size={18} color={BrandColors.primary} />
+                            </View>
+                            <Text style={[styles.menuText, { color: theme.text }]}>{t("edit Gig")}</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.menuItem}
+                            onPress={() => handleToggleStatus(gig.id, gig.is_active)}
+                          >
+                            {gig.is_active ? (
+                              <>
+                                <View style={[styles.menuIcon, { backgroundColor: BrandColors.warning + "15" }]}>
+                                  <Pause size={18} color={BrandColors.warning} />
+                                </View>
+                                <Text style={[styles.menuText, { color: theme.text }]}>{t("pause Gig")}</Text>
+                              </>
+                            ) : (
+                              <>
+                                <View style={[styles.menuIcon, { backgroundColor: BrandColors.success + "15" }]}>
+                                  <Play size={18} color={BrandColors.success} />
+                                </View>
+                                <Text style={[styles.menuText, { color: theme.text }]}>{t("activate Gig")}</Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.menuItem}
+                            onPress={() => handleDeleteGig(gig.id)}
+                          >
+                            <View style={[styles.menuIcon, { backgroundColor: BrandColors.error + "15" }]}>
+                              <Trash2 size={18} color={BrandColors.error} />
+                            </View>
+                            <Text style={[styles.menuText, { color: BrandColors.error }]}>
+                              {t("delete Gig")}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </TouchableOpacity>
+                    </Modal>
+                  )}
+                </React.Fragment>
               );
             })
           )}

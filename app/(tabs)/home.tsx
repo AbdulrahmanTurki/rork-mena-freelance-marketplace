@@ -2,14 +2,11 @@ import { BrandColors } from "@/constants/colors";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
-  categories,
   freelancers,
-  getFeaturedGigs,
-  getFreelancerById,
-  type Category,
   type Freelancer,
-  type Gig,
 } from "@/mocks/data";
+import { useCategories } from "@/hooks/useCategories";
+import { useGigs } from "@/hooks/useGigs";
 import { Image } from "expo-image";
 import { Stack, useRouter } from "expo-router";
 import {
@@ -75,19 +72,21 @@ export default function HomeScreen() {
   const { language, changeLanguage, t, isChanging } = useLanguage();
   const { theme } = useTheme();
   const router = useRouter();
-  const featuredGigs = getFeaturedGigs();
   const insets = useSafeAreaInsets();
+  
+  const { data: categories = [] } = useCategories();
+  const { data: gigs = [] } = useGigs({ limit: 10 });
 
   const handleLanguageToggle = () => {
     changeLanguage(language === "en" ? "ar" : "en");
   };
 
-  const handleCategoryPress = (category: Category) => {
-    router.push(`/category/${category.id}` as any);
+  const handleCategoryPress = (categoryId: string) => {
+    router.push(`/category/${categoryId}` as any);
   };
 
-  const handleGigPress = (gig: Gig) => {
-    router.push(`/gig/${gig.id}` as any);
+  const handleGigPress = (gigId: string) => {
+    router.push(`/gig/${gigId}` as any);
   };
 
   const handleFreelancerPress = (freelancer: Freelancer) => {
@@ -138,24 +137,18 @@ export default function HomeScreen() {
             contentContainerStyle={styles.categoriesContainer}
           >
             {categories.map((category) => {
+              const iconName = category.icon || 'more-horizontal';
               return (
                 <TouchableOpacity
                   key={category.id}
                   style={styles.categoryCard}
-                  onPress={() => handleCategoryPress(category)}
+                  onPress={() => handleCategoryPress(category.id)}
                 >
-                  {category.imageUrl ? (
-                    <Image
-                      source={{ uri: category.imageUrl }}
-                      style={styles.categoryImage}
-                    />
-                  ) : (
-                    <View style={[styles.categoryIconContainer, { backgroundColor: theme.inputBackground }]}>
-                      {iconMap[category.icon] && React.createElement(iconMap[category.icon], { size: 24, color: BrandColors.primary })}
-                    </View>
-                  )}
+                  <View style={[styles.categoryIconContainer, { backgroundColor: theme.inputBackground }]}>
+                    {iconMap[iconName] && React.createElement(iconMap[iconName], { size: 24, color: BrandColors.primary })}
+                  </View>
                   <Text style={[styles.categoryName, { color: theme.text }]}>
-                    {language === "en" ? category.nameEn : category.nameAr}
+                    {language === "en" ? category.name : (category.name_ar || category.name)}
                   </Text>
                 </TouchableOpacity>
               );
@@ -175,53 +168,52 @@ export default function HomeScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.gigsContainer}
           >
-            {featuredGigs.map((gig) => {
-              const freelancer = getFreelancerById(gig.freelancerId);
-              const minPrice = Math.min(...gig.pricing.map((p) => p.price));
+            {gigs.map((gig) => {
+              const packages = (gig.packages as any) || [];
+              const minPrice = packages.length > 0 ? Math.min(...packages.map((p: any) => p.price)) : gig.price;
+              const thumbnail = (gig.images as string[])?.[0] || 'https://images.unsplash.com/photo-1626785774573-4b799315345d?w=800&h=600&fit=crop';
 
               return (
                 <TouchableOpacity
                   key={gig.id}
                   style={[styles.gigCard, { backgroundColor: theme.card }]}
-                  onPress={() => handleGigPress(gig)}
+                  onPress={() => handleGigPress(gig.id)}
                 >
-                  <Image source={{ uri: gig.thumbnail }} style={styles.gigImage} />
-                  {freelancer && (
-                    <View style={styles.gigFooter}>
-                      <View style={styles.gigHeader}>
-                        <Image
-                          source={{ uri: freelancer.avatar }}
-                          style={styles.avatar}
-                        />
-                        <View style={styles.gigInfo}>
-                          <Text style={[styles.freelancerName, { color: theme.secondaryText }]} numberOfLines={1}>
-                            {freelancer.name}
-                          </Text>
-                          <Text style={[styles.gigTitle, { color: theme.text }]} numberOfLines={2}>
-                            {gig.title}
-                          </Text>
-                        </View>
-                      </View>
-                      <View style={styles.gigBottom}>
-                        <View style={styles.rating}>
-                          <Star
-                            size={14}
-                            fill={BrandColors.secondary}
-                            color={BrandColors.secondary}
-                          />
-                          <Text style={[styles.ratingText, { color: theme.text }]}>
-                            {freelancer.rating}
-                          </Text>
-                          <Text style={styles.reviewCount}>
-                            ({freelancer.reviewCount})
-                          </Text>
-                        </View>
-                        <Text style={[styles.price, { color: theme.text }]}>
-                          {t("startingAt")} SAR{minPrice}
+                  <Image source={{ uri: thumbnail }} style={styles.gigImage} />
+                  <View style={styles.gigFooter}>
+                    <View style={styles.gigHeader}>
+                      <Image
+                        source={{ uri: gig.seller?.avatar_url || 'https://ui-avatars.com/api/?name=' + gig.seller?.full_name }}
+                        style={styles.avatar}
+                      />
+                      <View style={styles.gigInfo}>
+                        <Text style={[styles.freelancerName, { color: theme.secondaryText }]} numberOfLines={1}>
+                          {gig.seller?.full_name || 'Seller'}
+                        </Text>
+                        <Text style={[styles.gigTitle, { color: theme.text }]} numberOfLines={2}>
+                          {gig.title}
                         </Text>
                       </View>
                     </View>
-                  )}
+                    <View style={styles.gigBottom}>
+                      <View style={styles.rating}>
+                        <Star
+                          size={14}
+                          fill={BrandColors.secondary}
+                          color={BrandColors.secondary}
+                        />
+                        <Text style={[styles.ratingText, { color: theme.text }]}>
+                          {gig.rating || 5.0}
+                        </Text>
+                        <Text style={styles.reviewCount}>
+                          ({gig.reviews_count || 0})
+                        </Text>
+                      </View>
+                      <Text style={[styles.price, { color: theme.text }]}>
+                        {t("startingAt")} SAR{minPrice}
+                      </Text>
+                    </View>
+                  </View>
                 </TouchableOpacity>
               );
             })}
