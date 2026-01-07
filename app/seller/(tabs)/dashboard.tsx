@@ -20,6 +20,7 @@ import {
   Sparkles,
   Plus,
   Globe,
+  User,
 } from "lucide-react-native";
 import React, { useMemo } from "react";
 import {
@@ -36,7 +37,7 @@ export default function SellerDashboard() {
   const { t, language, changeLanguage } = useLanguage();
   const { theme } = useTheme();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, switchToBuyer } = useAuth();
 
   const { data: wallet, isLoading: walletLoading, error: walletError } = useSellerWallet();
   const { data: myGigs, isLoading: gigsLoading } = useGigs({ sellerId: user?.id });
@@ -46,9 +47,15 @@ export default function SellerDashboard() {
     changeLanguage(language === "en" ? "ar" : "en");
   };
 
+  const handleSwitchToBuyer = async () => {
+    console.log('[SellerDashboard] Switching to buyer mode');
+    await switchToBuyer();
+    router.replace('/(tabs)/home' as any);
+  };
+
   const stats = useMemo(() => {
     const activeOrders = allOrders?.filter(o => 
-      o.status === 'in_progress' || o.status === 'pending_delivery' || o.status === 'revision_requested'
+      o.status === 'in_progress' || o.status === 'delivered' || o.status === 'revision_requested'
     ).length || 0;
     const completedOrders = allOrders?.filter(o => o.status === 'completed').length || 0;
 
@@ -65,7 +72,7 @@ export default function SellerDashboard() {
       return orderDate >= thisMonth && o.status === 'completed';
     }) || [];
 
-    const monthlyEarnings = monthlyOrders.reduce((sum, order) => sum + (order.total_amount || 0), 0);
+    const monthlyEarnings = monthlyOrders.reduce((sum, order) => sum + (order.gig_price || 0), 0);
 
     return {
       totalEarnings: wallet?.total_earned || 0,
@@ -82,21 +89,21 @@ export default function SellerDashboard() {
     if (!allOrders) return [];
 
     return allOrders
-      .filter(o => o.status === 'in_progress' || o.status === 'pending_delivery' || o.status === 'revision_requested')
+      .filter(o => o.status === 'in_progress' || o.status === 'delivered' || o.status === 'revision_requested')
       .slice(0, 3)
       .map(order => {
-        const dueDate = new Date(order.due_date);
+        const autoReleaseDate = order.auto_release_at ? new Date(order.auto_release_at) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
         const now = new Date();
-        const hoursLeft = Math.max(0, Math.floor((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60)));
+        const hoursLeft = Math.max(0, Math.floor((autoReleaseDate.getTime() - now.getTime()) / (1000 * 60 * 60)));
 
         return {
           id: order.id,
           buyerName: order.buyer?.full_name || 'Unknown',
           buyerAvatar: order.buyer?.avatar_url || 'https://i.pravatar.cc/300',
           gigTitle: order.gig_title || 'Untitled',
-          price: order.total_amount || 0,
+          price: order.gig_price || 0,
           status: order.status,
-          dueDate: order.due_date,
+          dueDate: order.auto_release_at || '',
           hoursLeft,
         };
       });
@@ -106,7 +113,7 @@ export default function SellerDashboard() {
     switch (status) {
       case "in_progress":
         return BrandColors.primary;
-      case "pending_delivery":
+      case "delivered":
         return BrandColors.secondary;
       case "revision_requested":
         return BrandColors.accent;
@@ -119,8 +126,8 @@ export default function SellerDashboard() {
     switch (status) {
       case "in_progress":
         return t("in Progress");
-      case "pending_delivery":
-        return t("pending Delivery");
+      case "delivered":
+        return t("delivered");
       case "revision_requested":
         return t("revision Requested");
       default:
@@ -147,15 +154,26 @@ export default function SellerDashboard() {
       <Stack.Screen
         options={{
           headerRight: () => (
-            <TouchableOpacity
-              style={[styles.languageButton, { backgroundColor: theme.inputBackground }]}
-              onPress={handleLanguageToggle}
-            >
-              <Globe size={20} color={BrandColors.primary} />
-              <Text style={[styles.languageText, { color: BrandColors.primary }]}>
-                {language === "en" ? "AR" : "EN"}
-              </Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <TouchableOpacity
+                style={[styles.switchModeButton, { backgroundColor: theme.inputBackground }]}
+                onPress={handleSwitchToBuyer}
+              >
+                <User size={18} color={BrandColors.primary} />
+                <Text style={[styles.switchModeText, { color: BrandColors.primary }]}>
+                  {t("buyer Mode")}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.languageButton, { backgroundColor: theme.inputBackground }]}
+                onPress={handleLanguageToggle}
+              >
+                <Globe size={20} color={BrandColors.primary} />
+                <Text style={[styles.languageText, { color: BrandColors.primary }]}>
+                  {language === "en" ? "AR" : "EN"}
+                </Text>
+              </TouchableOpacity>
+            </View>
           ),
         }}
       />
@@ -726,6 +744,20 @@ const styles = StyleSheet.create({
   languageText: {
     fontSize: 14,
     fontWeight: "600" as const,
+    color: BrandColors.primary,
+  },
+  switchModeButton: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: BrandColors.gray100,
+    borderRadius: 20,
+  },
+  switchModeText: {
+    fontSize: 13,
+    fontWeight: "700" as const,
     color: BrandColors.primary,
   },
 });

@@ -26,6 +26,7 @@ export function useGigs(params?: {
   sellerId?: string;
   featured?: boolean;
   limit?: number;
+  includeInactive?: boolean;
 }) {
   return useQuery({
     queryKey: ["gigs", params],
@@ -39,8 +40,11 @@ export function useGigs(params?: {
           seller:profiles!seller_id(id, full_name, avatar_url),
           category:categories(id, name, name_ar)
         `
-        )
-        .eq("is_active", true);
+        );
+
+      if (!params?.includeInactive) {
+        query = query.eq("is_active", true);
+      }
 
       if (params?.categoryId) {
         query = query.eq("category_id", params.categoryId);

@@ -11,7 +11,7 @@ import { supabase } from "@/lib/supabase";
 export default function ProfileScreen() {
   const { t } = useLanguage();
   const { theme } = useTheme();
-  const { user, isGuest, refreshUser } = useAuth();
+  const { user, isGuest, refreshUser, switchToSeller } = useAuth();
   const router = useRouter();
   const [isCheckingVerification, setIsCheckingVerification] = React.useState(false);
 
@@ -26,7 +26,8 @@ export default function ProfileScreen() {
     if (user.type === "seller") {
       const status = user.verificationStatus;
       if (status === "approved") {
-        router.push("/seller/(tabs)/dashboard" as any);
+        await switchToSeller();
+        router.replace("/seller/(tabs)/dashboard" as any);
       } else if (status === "pending") {
         router.push("/seller/verification-pending" as any);
       } else {

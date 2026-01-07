@@ -15,6 +15,7 @@ import {
   Play,
   Trash2,
   TrendingUp,
+  ExternalLink,
 } from "lucide-react-native";
 import React, { useState } from "react";
 import {
@@ -34,7 +35,7 @@ export default function SellerGigs() {
   const { user } = useAuth();
   const [selectedGig, setSelectedGig] = useState<string | null>(null);
 
-  const { data: myGigs, isLoading } = useGigs({ sellerId: user?.id });
+  const { data: myGigs, isLoading } = useGigs({ sellerId: user?.id, includeInactive: true });
   const updateGigMutation = useUpdateGig();
   const deleteGigMutation = useDeleteGig();
 
@@ -45,6 +46,11 @@ export default function SellerGigs() {
   const handleEditGig = (gigId: string) => {
     setSelectedGig(null);
     router.push(`/seller/edit-gig/${gigId}` as any);
+  };
+
+  const handlePreviewGig = (gigId: string) => {
+    setSelectedGig(null);
+    router.push(`/gig/${gigId}` as any);
   };
 
   const handleToggleStatus = async (gigId: string, currentStatus: boolean) => {
@@ -116,7 +122,8 @@ export default function SellerGigs() {
           ) : (
             myGigs.map((gig) => {
               const thumbnail = gig.images?.[0] || 'https://images.unsplash.com/photo-1626785774573-4b799315345d?w=800&h=600&fit=crop';
-              const startingPrice = gig.pricing_tiers?.[0]?.price || 0;
+              const packages = gig.packages as any;
+              const startingPrice = packages?.[0]?.price || gig.price || 0;
 
               return (
                 <View key={gig.id} style={[styles.gigCard, { backgroundColor: theme.card }]}>
@@ -184,9 +191,7 @@ export default function SellerGigs() {
                         <View style={styles.statIconBg}>
                           <Eye size={14} color={BrandColors.primary} />
                         </View>
-                        <Text style={[styles.statText, { color: theme.secondaryText }]}>
-                          {gig.views || 0}
-                        </Text>
+                        <Text style={[styles.statText, { color: theme.secondaryText }]}>0</Text>
                       </View>
                       <View style={styles.statItem}>
                         <View style={styles.statIconBg}>
@@ -227,6 +232,16 @@ export default function SellerGigs() {
                       onPress={() => setSelectedGig(null)}
                     >
                       <View style={[styles.menuModal, { backgroundColor: theme.card }]}>
+                        <TouchableOpacity
+                          style={styles.menuItem}
+                          onPress={() => handlePreviewGig(gig.id)}
+                        >
+                          <View style={[styles.menuIcon, { backgroundColor: BrandColors.accent + "15" }]}>
+                            <ExternalLink size={18} color={BrandColors.accent} />
+                          </View>
+                          <Text style={[styles.menuText, { color: theme.text }]}>{t("preview Gig")}</Text>
+                        </TouchableOpacity>
+
                         <TouchableOpacity
                           style={styles.menuItem}
                           onPress={() => handleEditGig(gig.id)}
