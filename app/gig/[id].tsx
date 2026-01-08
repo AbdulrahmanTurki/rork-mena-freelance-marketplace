@@ -172,7 +172,7 @@ export default function GigDetailScreen() {
 
               <TouchableOpacity 
                 style={styles.chatButton}
-                onPress={() => router.push(`/chat/${gig.seller?.id}` as any)}
+                onPress={() => router.push(`/chat/user/${gig.seller?.id}?gigId=${gig.id}` as any)}
               >
                 <MessageCircle size={20} color={BrandColors.primary} />
                 <Text style={styles.chatButtonText}>Chat with Seller</Text>

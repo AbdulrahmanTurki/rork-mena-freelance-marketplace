@@ -39,6 +39,8 @@ export default function InboxScreen() {
   const handleConversationPress = (conversation: typeof conversationList[0]) => {
     if (conversation.lastMessage?.order_id) {
       router.push(`/chat/${conversation.lastMessage.order_id}` as any);
+    } else if (conversation.otherUser?.id) {
+      router.push(`/chat/user/${conversation.otherUser.id}` as any);
     }
   };
 
