@@ -20,9 +20,9 @@ import {
   ActivityIndicator,
   Image,
 } from "react-native";
-import { useQueryClient } from "@tanstack/react-query";
 import * as ImagePicker from "expo-image-picker"; 
 import { supabase } from "@/lib/supabase";
+import { useUpdateGig } from "@/hooks/useGigs";
 
 type PricingPackage = {
   name: "basic" | "standard" | "premium";
@@ -38,7 +38,7 @@ export default function EditGigScreen() {
   const { isRTL } = useLanguage();
   const router = useRouter();
   const { user } = useAuth();
-  const queryClient = useQueryClient();
+  const updateGigMutation = useUpdateGig();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -197,23 +197,20 @@ export default function EditGigScreen() {
 
       const basicPkg = packagesData.find(p => p.name === "basic");
       
-      const { error } = await supabase
-        .from('gigs')
-        .update({
-            title,
-            description,
-            category_id: selectedCategory,
-            price: basicPkg ? basicPkg.price : 0,
-            delivery_time: basicPkg ? basicPkg.deliveryDays : 0,
-            tags,
-            images: finalImageUrls, 
-            packages: packagesData
-        })
-        .eq('id', id);
+      await updateGigMutation.mutateAsync({
+        id: id as string,
+        updates: {
+          title,
+          description,
+          category_id: selectedCategory,
+          price: basicPkg ? basicPkg.price : 0,
+          delivery_time: basicPkg ? basicPkg.deliveryDays : 0,
+          tags,
+          images: finalImageUrls, 
+          packages: packagesData
+        }
+      });
 
-      if (error) throw error;
-
-      queryClient.invalidateQueries({ queryKey: ['seller-gigs'] }); 
       Alert.alert("Success", "Service updated successfully!", [{ text: "OK", onPress: () => router.back() }]);
 
     } catch (error: any) {
