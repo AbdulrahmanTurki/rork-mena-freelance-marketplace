@@ -7,7 +7,6 @@ import {
   Plus,
   X,
   FileImage,
-  Clock,
   Package as PackageIcon,
 } from "lucide-react-native";
 import React, { useState } from "react";
@@ -191,20 +190,22 @@ export default function CreateGigScreen() {
       const uploadedImageUrls: string[] = [];
       for (const uri of images) {
         const filename = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
-        const formData = new FormData();
         
-        // @ts-ignore
-        formData.append('file', {
-          uri,
-          name: filename,
-          type: 'image/jpeg',
-        });
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        const arrayBuffer = await new Response(blob).arrayBuffer();
 
         const { error } = await supabase.storage
           .from('gig-images')
-          .upload(filename, formData, { contentType: 'image/jpeg' });
+          .upload(filename, arrayBuffer, { 
+            contentType: 'image/jpeg',
+            upsert: false 
+          });
 
-        if (error) throw error;
+        if (error) {
+          console.error('Upload error:', error);
+          throw error;
+        }
 
         const { data: publicUrlData } = supabase.storage
           .from('gig-images')
@@ -369,7 +370,12 @@ export default function CreateGigScreen() {
 
             {/* Previews */}
             {images.length > 0 && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imagePreviewList}>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false} 
+                style={styles.imagePreviewList}
+                contentContainerStyle={{ flexDirection: t('appName') === 'خدمة' ? 'row-reverse' : 'row' }}
+              >
                 {images.map((uri, index) => (
                   <View key={index} style={styles.previewContainer}>
                     <Image source={{ uri }} style={styles.previewImage} />

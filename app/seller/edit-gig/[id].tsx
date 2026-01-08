@@ -7,8 +7,6 @@ import {
   Plus,
   X,
   FileImage,
-  Clock,
-  Package as PackageIcon,
 } from "lucide-react-native";
 import React, { useState, useEffect } from "react";
 import {
@@ -37,6 +35,7 @@ type PricingPackage = {
 export default function EditGigScreen() {
   const { id } = useLocalSearchParams();
   const { theme } = useTheme();
+  const { isRTL } = useLanguage();
   const router = useRouter();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -62,6 +61,7 @@ export default function EditGigScreen() {
   useEffect(() => {
     if (!id) return;
     fetchGigDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const fetchGigDetails = async () => {
@@ -120,6 +120,7 @@ export default function EditGigScreen() {
         setImages(prev => [...prev, ...newUris].slice(0, 5));
       }
     } catch (error) {
+      console.error('Error picking images:', error);
       Alert.alert('Error', 'Could not open gallery.');
     }
   };
@@ -164,15 +165,22 @@ export default function EditGigScreen() {
           finalImageUrls.push(img);
         } else {
           const filename = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
-          const formData = new FormData();
-          // @ts-ignore
-          formData.append('file', { uri: img, name: filename, type: 'image/jpeg' });
+          
+          const response = await fetch(img);
+          const blob = await response.blob();
+          const arrayBuffer = await new Response(blob).arrayBuffer();
 
           const { error: uploadError } = await supabase.storage
             .from('gig-images')
-            .upload(filename, formData, { contentType: 'image/jpeg' });
+            .upload(filename, arrayBuffer, { 
+              contentType: 'image/jpeg',
+              upsert: false 
+            });
 
-          if (uploadError) throw uploadError;
+          if (uploadError) {
+            console.error('Upload error:', uploadError);
+            throw uploadError;
+          }
 
           const { data } = supabase.storage.from('gig-images').getPublicUrl(filename);
           finalImageUrls.push(data.publicUrl);
@@ -258,7 +266,12 @@ export default function EditGigScreen() {
 
                     {/* 2. The Images List (Inside the box) */}
                     {images.length > 0 && (
-                        <ScrollView horizontal style={styles.imageListInside} showsHorizontalScrollIndicator={false}>
+                        <ScrollView 
+                          horizontal 
+                          style={styles.imageListInside} 
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={{ flexDirection: isRTL ? 'row-reverse' : 'row' }}
+                        >
                             {images.map((uri, idx) => (
                                 <View key={idx} style={styles.previewContainer}>
                                     <Image source={{ uri }} style={styles.previewImage} />
